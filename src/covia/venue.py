@@ -19,6 +19,7 @@ from covia.models import (
     DIDDocument,
     JobData,
     MCPDiscovery,
+    OperationInfo,
     VenueStatus,
 )
 
@@ -129,6 +130,22 @@ class Venue:
         return self._client.put_asset_content(asset_id, content)
 
     # ------------------------------------------------------------------
+    # Operations
+    # ------------------------------------------------------------------
+
+    def list_operations(self) -> list[OperationInfo]:
+        """List all named operations available on this venue."""
+        return self._client.list_operations()
+
+    def get_operation(self, name: str) -> OperationInfo:
+        """Get details of a named operation.
+
+        Args:
+            name: Operation name (e.g. ``"test:echo"``).
+        """
+        return self._client.get_operation(name)
+
+    # ------------------------------------------------------------------
     # Invoke / Run
     # ------------------------------------------------------------------
 
@@ -139,7 +156,10 @@ class Venue:
         :meth:`job.wait() <covia.job.Job.wait>` to block until completion.
 
         Args:
-            operation: Operation identifier (asset ID or alias).
+            operation: Operation identifier — accepts a hex asset ID
+                (e.g. ``"b8fc54e7..."``), an operation name
+                (e.g. ``"test:echo"``), or a DID URL
+                (e.g. ``"did:key:z6Mk.../a/b8fc54e7..."``).
             input: Input parameters for the operation.
 
         Returns:
@@ -161,7 +181,8 @@ class Venue:
         and :attr:`~covia.job.Job.output`.
 
         Args:
-            operation: Operation identifier (asset ID or alias).
+            operation: Operation identifier — accepts a hex asset ID,
+                an operation name (e.g. ``"test:echo"``), or a DID URL.
             input: Input parameters for the operation.
             timeout: Maximum seconds to wait for completion.
 

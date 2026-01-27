@@ -17,6 +17,7 @@ from covia.models import (
     DIDDocument,
     JobData,
     MCPDiscovery,
+    OperationInfo,
     VenueStatus,
 )
 
@@ -122,9 +123,7 @@ class CoviaHTTPClient:
 
     def stream_job_events(self, job_id: str) -> Iterator[SSEEvent]:
         """``GET /api/v1/jobs/{id}/sse`` — yields SSE events."""
-        with connect_sse(
-            self._client, "GET", f"jobs/{job_id}/sse"
-        ) as event_source:
+        with connect_sse(self._client, "GET", f"jobs/{job_id}/sse") as event_source:
             for sse in event_source.iter_sse():
                 yield SSEEvent(
                     event=sse.event if sse.event else None,
@@ -132,6 +131,20 @@ class CoviaHTTPClient:
                     id=sse.id if sse.id else None,
                     retry=sse.retry,
                 )
+
+    # ------------------------------------------------------------------
+    # Operations
+    # ------------------------------------------------------------------
+
+    def list_operations(self) -> list[OperationInfo]:
+        """``GET /api/v1/operations``"""
+        resp = self._request("GET", "operations")
+        return [OperationInfo.model_validate(item) for item in resp.json()]
+
+    def get_operation(self, name: str) -> OperationInfo:
+        """``GET /api/v1/operations/{name}``"""
+        resp = self._request("GET", f"operations/{name}")
+        return OperationInfo.model_validate(resp.json())
 
     # ------------------------------------------------------------------
     # Discovery

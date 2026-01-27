@@ -1,4 +1,4 @@
-"""Discover venue capabilities: DID and MCP.
+"""Discover venue capabilities: DID, MCP, and operations.
 
 Usage:
     python examples/discovery.py
@@ -21,3 +21,10 @@ with Grid.connect(VENUE_URL) as venue:
     print(f"\nMCP version:  {mcp.mcp_version}")
     print(f"MCP endpoint: {mcp.endpoint}")
     print(f"Tools:        {mcp.tools_endpoint}")
+
+    # Named operations
+    ops = venue.list_operations()
+    print(f"\n{len(ops)} operations available:")
+    for op in ops:
+        desc = f" — {op.description}" if op.description else ""
+        print(f"  {op.name}{desc}")

@@ -87,6 +87,18 @@ class MCPDiscovery(BaseModel):
     model_config = {"extra": "allow"}
 
 
+class OperationInfo(BaseModel):
+    """Named operation info returned by ``GET /api/v1/operations``."""
+
+    name: str
+    asset: str
+    description: str | None = None
+    input: dict[str, Any] | None = None
+    output: dict[str, Any] | None = None
+
+    model_config = {"extra": "allow"}
+
+
 class AgentCard(BaseModel):
     """A2A agent card from ``GET /.well-known/agent-card.json``."""
 

@@ -19,12 +19,9 @@ from covia import (
 
 VENUE_URL = os.environ.get("COVIA_VENUE_URL", "https://venue-test.covia.ai")
 
-# Fail Operation — always fails with the given message
-FAIL = "54e1c8e375159dc99c2681361bf77e2713bc2153633c387a166900bdf34878e4"
-
 try:
     with Grid.connect(VENUE_URL) as venue:
-        result = venue.run(FAIL, {"message": "something went wrong"}, timeout=10)
+        result = venue.run("test:error", {"message": "something went wrong"}, timeout=10)
         print("Result:", result)
 
 except JobFailedError as e:

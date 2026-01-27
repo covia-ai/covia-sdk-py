@@ -27,6 +27,7 @@ from covia.models import (
     InvokeRequest,
     JobData,
     MCPDiscovery,
+    OperationInfo,
     VenueStatus,
 )
 from covia.status import JobStatus
@@ -50,6 +51,7 @@ __all__ = [
     "MCPDiscovery",
     "AgentCard",
     "InvokeRequest",
+    "OperationInfo",
     # Exceptions
     "CoviaError",
     "CoviaAPIError",

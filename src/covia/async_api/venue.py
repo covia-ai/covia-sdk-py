@@ -16,6 +16,7 @@ from covia.models import (
     DIDDocument,
     JobData,
     MCPDiscovery,
+    OperationInfo,
     VenueStatus,
 )
 
@@ -94,11 +95,33 @@ class AsyncVenue:
         return await self._client.put_asset_content(asset_id, content)
 
     # ------------------------------------------------------------------
+    # Operations
+    # ------------------------------------------------------------------
+
+    async def list_operations(self) -> list[OperationInfo]:
+        """List all named operations available on this venue."""
+        return await self._client.list_operations()
+
+    async def get_operation(self, name: str) -> OperationInfo:
+        """Get details of a named operation.
+
+        Args:
+            name: Operation name (e.g. ``"test:echo"``).
+        """
+        return await self._client.get_operation(name)
+
+    # ------------------------------------------------------------------
     # Invoke / Run
     # ------------------------------------------------------------------
 
     async def invoke(self, operation: str, input: Any = None) -> AsyncJob:
-        """Invoke an operation, returning an AsyncJob for tracking."""
+        """Invoke an operation, returning an AsyncJob for tracking.
+
+        Args:
+            operation: Operation identifier — accepts a hex asset ID,
+                an operation name (e.g. ``"test:echo"``), or a DID URL.
+            input: Input parameters for the operation.
+        """
         job_data = await self._client.invoke(operation, input)
         return AsyncJob(data=job_data, venue=self)
 
@@ -109,7 +132,14 @@ class AsyncVenue:
         *,
         timeout: float | None = None,
     ) -> Any:
-        """Invoke an operation and wait for the result."""
+        """Invoke an operation and wait for the result.
+
+        Args:
+            operation: Operation identifier — accepts a hex asset ID,
+                an operation name (e.g. ``"test:echo"``), or a DID URL.
+            input: Input parameters for the operation.
+            timeout: Maximum seconds to wait for completion.
+        """
         job = await self.invoke(operation, input)
         await job.wait(timeout=timeout)
         return job.output

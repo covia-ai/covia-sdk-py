@@ -12,14 +12,9 @@ from covia import Grid
 
 VENUE_URL = os.environ.get("COVIA_VENUE_URL", "https://venue-test.covia.ai")
 
-# Echo — returns input unchanged (completes quickly)
-ECHO = "b8fc54e709ee295d97ffdba0ae446fe61782ba136f423cca469943955d818f33"
-# Never — stays STARTED forever (useful for cancel demo)
-NEVER = "dc7f887e781b3d352da3c6d353788f2ec7a36ef72f6b7cb1a34bb13bd8e631fe"
-
 with Grid.connect(VENUE_URL) as venue:
     # invoke() returns immediately with a Job handle
-    job = venue.invoke(ECHO, {"message": "hello"})
+    job = venue.invoke("test:echo", {"message": "hello"})
     print(f"Job {job.id} submitted  (status: {job.status})")
 
     # Poll manually
@@ -36,7 +31,7 @@ with Grid.connect(VENUE_URL) as venue:
         print("Error:", job.error)
 
     # --- Cancel a job that never finishes ---
-    stuck = venue.invoke(NEVER, {})
+    stuck = venue.invoke("test:never", {})
     print(f"\nNever-job {stuck.id} (status: {stuck.status})")
     stuck.cancel()
     print(f"After cancel: {stuck.status}")
