@@ -1,12 +1,16 @@
-"""Discover venue capabilities: DID, MCP, and A2A agent card.
+"""Discover venue capabilities: DID and MCP.
 
 Usage:
     python examples/discovery.py
 """
 
+import os
+
 from covia import Grid
 
-with Grid.connect("https://venue.covia.ai") as venue:
+VENUE_URL = os.environ.get("COVIA_VENUE_URL", "https://venue-test.covia.ai")
+
+with Grid.connect(VENUE_URL) as venue:
     # DID document (decentralised identity)
     did_doc = venue.did_document()
     print(f"DID:     {did_doc.id}")
@@ -17,9 +21,3 @@ with Grid.connect("https://venue.covia.ai") as venue:
     print(f"\nMCP version:  {mcp.mcp_version}")
     print(f"MCP endpoint: {mcp.endpoint}")
     print(f"Tools:        {mcp.tools_endpoint}")
-
-    # A2A agent card (Agent-to-Agent protocol)
-    card = venue.agent_card()
-    print(f"\nAgent provider:     {card.agentProvider}")
-    print(f"Agent capabilities: {card.agentCapabilities}")
-    print(f"Agent skills:       {card.agentSkills}")

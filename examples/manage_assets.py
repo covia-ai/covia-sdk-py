@@ -4,30 +4,39 @@ Usage:
     python examples/manage_assets.py
 """
 
+import hashlib
 import json
+import os
 
 from covia import Grid
 
-with Grid.connect("https://venue.covia.ai") as venue:
-    # Register a new asset with metadata
+VENUE_URL = os.environ.get("COVIA_VENUE_URL", "https://venue-test.covia.ai")
+
+with Grid.connect(VENUE_URL) as venue:
+    # Prepare content and compute its SHA-256 hash (content-addressed storage)
+    payload = json.dumps({"segments": ["enterprise", "startup", "gov"]}).encode()
+    content_hash = hashlib.sha256(payload).hexdigest().upper()
+
+    # Register a new asset with metadata (hash must be included)
     asset_id = venue.register_asset(
         {
             "name": "customer-segments",
             "description": "Q4 customer segmentation results",
-            "content-type": "application/json",
+            "content": {
+                "contentType": "application/json",
+                "sha256": content_hash,
+            },
         }
     )
     print(f"Registered asset: {asset_id}")
 
     # Upload content
-    payload = json.dumps({"segments": ["enterprise", "startup", "gov"]}).encode()
-    content_hash = venue.put_asset_content(asset_id, payload)
-    print(f"Uploaded content (hash: {content_hash})")
+    venue.put_asset_content(asset_id, payload)
+    print(f"Uploaded {len(payload)} bytes (sha256: {content_hash})")
 
     # Retrieve the asset and inspect it
     asset = venue.get_asset(asset_id)
     print(f"Name:         {asset.name}")
-    print(f"Content-Type: {asset.content_type}")
     print(f"Is operation: {asset.is_operation}")
 
     # Download content

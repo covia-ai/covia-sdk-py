@@ -1,8 +1,12 @@
 """Graceful error handling for common failure modes.
 
+Uses the Fail Operation, which always raises an error.
+
 Usage:
     python examples/error_handling.py
 """
+
+import os
 
 from covia import (
     CoviaAPIError,
@@ -13,9 +17,14 @@ from covia import (
     JobFailedError,
 )
 
+VENUE_URL = os.environ.get("COVIA_VENUE_URL", "https://venue-test.covia.ai")
+
+# Fail Operation — always fails with the given message
+FAIL = "54e1c8e375159dc99c2681361bf77e2713bc2153633c387a166900bdf34878e4"
+
 try:
-    with Grid.connect("https://venue.covia.ai") as venue:
-        result = venue.run("might-fail", {"x": 1}, timeout=30)
+    with Grid.connect(VENUE_URL) as venue:
+        result = venue.run(FAIL, {"message": "something went wrong"}, timeout=10)
         print("Result:", result)
 
 except JobFailedError as e:

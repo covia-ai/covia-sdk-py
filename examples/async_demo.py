@@ -5,32 +5,33 @@ Usage:
 """
 
 import asyncio
+import os
 
 from covia.async_api import AsyncGrid
 
+VENUE_URL = os.environ.get("COVIA_VENUE_URL", "https://venue-test.covia.ai")
+
+ECHO = "b8fc54e709ee295d97ffdba0ae446fe61782ba136f423cca469943955d818f33"
+
 
 async def main() -> None:
-    async with AsyncGrid.connect("https://venue.covia.ai") as venue:
+    async with AsyncGrid.connect(VENUE_URL) as venue:
         # Check venue status
         status = await venue.status()
         print(f"Connected to {status.name}")
 
         # Run an operation (invoke + wait)
-        result = await venue.run(
-            "text-summarise",
-            {"text": "Covia is federated AI orchestration.", "max_length": 20},
-            timeout=30,
-        )
-        print("Summary:", result)
+        result = await venue.run(ECHO, {"message": "hello async"}, timeout=10)
+        print(f"Echo result: {result}")
 
         # Fire-and-forget with a job handle
-        job = await venue.invoke("analyse", {"data": [1, 2, 3]})
-        output = await job.result(timeout=60)
-        print("Analysis:", output)
+        job = await venue.invoke(ECHO, {"message": "via job handle"})
+        output = await job.result(timeout=10)
+        print(f"Job result:  {output}")
 
         # List assets
         assets = await venue.list_assets(limit=5)
-        print(f"{assets.total} assets on venue")
+        print(f"\n{assets.total} assets on venue")
 
 
 asyncio.run(main())

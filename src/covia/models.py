@@ -82,7 +82,7 @@ class MCPDiscovery(BaseModel):
     server_url: str | None = None
     description: str | None = None
     tools_endpoint: str | None = None
-    endpoint: str | None = None
+    endpoint: dict[str, Any] | str | None = None
 
     model_config = {"extra": "allow"}
 
