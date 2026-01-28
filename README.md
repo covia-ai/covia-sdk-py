@@ -197,6 +197,7 @@ Apache License 2.0. See [LICENSE](LICENSE).
 
 ## Links
 
+- [Python SDK Documentation](https://docs.covia.ai/docs/user-guide/sdk/python)
 - [Covia Documentation](https://docs.covia.ai)
 - [Covia Website](https://covia.ai)
 - [GitHub](https://github.com/covia-ai/covia-sdk-py)

@@ -92,13 +92,31 @@ class AsyncVenue:
         return await self._client.list_assets(offset=offset, limit=limit)
 
     async def get_asset(self, asset_id: str) -> Asset:
-        """Get an asset by its ID."""
-        metadata, metadata_raw = await self._client.get_asset_metadata(asset_id)
-        return Asset(id=asset_id, metadata=metadata, metadata_raw=metadata_raw)
+        """Get an asset by its ID.
 
-    async def register_asset(self, metadata: dict[str, Any]) -> str:
-        """Register a new asset. Returns the asset ID."""
-        return await self._client.register_asset(metadata)
+        Raises:
+            ValueError: If the metadata hash does not match the requested ID.
+        """
+        metadata, metadata_raw = await self._client.get_asset_metadata(asset_id)
+        if metadata_raw is not None:
+            computed = Asset.compute_id(metadata_raw)
+            if computed != asset_id:
+                raise ValueError(f"Asset ID mismatch: requested {asset_id!r} but metadata hashes to {computed!r}")
+        return Asset(metadata=metadata, id=asset_id, venue=self, metadata_raw=metadata_raw)
+
+    async def register(self, asset: Asset | dict[str, Any]) -> Asset:
+        """Register a new asset at this venue.
+
+        Args:
+            asset: An :class:`Asset` instance or a metadata dictionary.
+
+        Returns:
+            A registered :class:`Asset` with the server-assigned ID
+            and this venue attached.
+        """
+        metadata = asset.metadata if isinstance(asset, Asset) else asset
+        asset_id = await self._client.register_asset(metadata)
+        return await self.get_asset(asset_id)
 
     async def get_asset_content(self, asset_id: str) -> bytes:
         """Download the binary content of an asset."""

@@ -2,12 +2,57 @@
 
 from __future__ import annotations
 
+import hashlib
+
 import pytest
 
 from covia import Asset
 from tests.conftest import VENUE_URL
 
 API_BASE = f"{VENUE_URL}/api/v1/"
+
+
+class TestAssetConstruction:
+    def test_positional_metadata(self):
+        asset = Asset({"name": "Test"})
+        assert asset.metadata == {"name": "Test"}
+        assert asset.id is None
+
+    def test_id_none_by_default(self):
+        asset = Asset({"name": "Test"})
+        assert asset.id is None
+
+    def test_id_computed_from_metadata_raw(self):
+        raw = '{"name": "Test"}'
+        asset = Asset({"name": "Test"}, metadata_raw=raw)
+        expected = Asset.compute_id(raw)
+        assert asset.id == expected
+
+    def test_compute_id_matches_sha256(self):
+        raw = '{"name": "Test"}'
+        expected = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+        assert Asset.compute_id(raw) == expected
+
+    def test_repr_unregistered(self):
+        asset = Asset({})
+        assert repr(asset) == "Asset('unregistered')"
+
+    def test_repr_unregistered_with_name(self):
+        asset = Asset({"name": "Foo"})
+        assert repr(asset) == "Asset('Foo')"
+
+    def test_eq_none_id_identity(self):
+        a = Asset({})
+        b = Asset({})
+        assert a != b
+        assert a == a  # noqa: PLR0124
+
+    def test_hash_none_id_identity(self):
+        a = Asset({})
+        b = Asset({})
+        # Different objects should (almost certainly) have different hashes
+        assert hash(a) != hash(b)
+        assert hash(a) == hash(a)
 
 
 class TestAssetProperties:

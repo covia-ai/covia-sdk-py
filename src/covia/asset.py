@@ -5,6 +5,7 @@ Mirrors ``covia.grid.Asset`` from the Java SDK.
 
 from __future__ import annotations
 
+import hashlib
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -34,9 +35,10 @@ class Asset:
 
     def __init__(
         self,
-        id: str,
         metadata: dict[str, Any],
-        venue: Venue | None = None,
+        *,
+        id: str | None = None,
+        venue: Venue | Any = None,
         metadata_raw: str | None = None,
     ) -> None:
         self._id = id
@@ -48,9 +50,26 @@ class Asset:
     # Properties
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def compute_id(metadata_raw: str) -> str:
+        """Compute the asset ID from canonical metadata bytes.
+
+        The asset ID is the lowercase hex SHA-256 hash of the exact
+        UTF-8 encoded metadata string.
+        """
+        return hashlib.sha256(metadata_raw.encode("utf-8")).hexdigest()
+
     @property
-    def id(self) -> str:
-        """The asset identifier (SHA-256 hex hash of metadata)."""
+    def id(self) -> str | None:
+        """The asset identifier (SHA-256 hex hash of metadata).
+
+        If the asset was constructed without an explicit ID but has raw
+        metadata, the ID is computed lazily from the metadata hash.
+        Returns ``None`` for locally-constructed assets that have
+        neither an explicit ID nor raw metadata.
+        """
+        if self._id is None and self._metadata_raw is not None:
+            self._id = self.compute_id(self._metadata_raw)
         return self._id
 
     @property
@@ -91,8 +110,8 @@ class Asset:
 
     @property
     def did_url(self) -> str | None:
-        """DID URL for this asset, or ``None`` if no venue is attached."""
-        if self._venue is None:
+        """DID URL for this asset, or ``None`` if no venue is attached or no ID assigned."""
+        if self._id is None or self._venue is None:
             return None
         venue_did = self._venue.did
         if venue_did is None:
@@ -100,8 +119,8 @@ class Asset:
         return f"{venue_did}/a/{self._id}"
 
     @property
-    def venue(self) -> Venue | None:
-        """The venue this asset belongs to."""
+    def venue(self) -> Venue | Any:
+        """The venue this asset belongs to, or ``None``."""
         return self._venue
 
     # ------------------------------------------------------------------
@@ -112,10 +131,12 @@ class Asset:
         """Download the binary content of this asset.
 
         Raises:
-            ValueError: If no venue is attached.
+            ValueError: If no venue is attached or no ID assigned.
         """
         if self._venue is None:
             raise ValueError("Cannot get content: asset has no attached venue")
+        if self._id is None:
+            raise ValueError("Cannot get content: asset has no ID (not yet registered)")
         return self._venue.get_asset_content(self._id)
 
     def put_content(self, content: bytes) -> str:
@@ -128,10 +149,12 @@ class Asset:
             Content hash string.
 
         Raises:
-            ValueError: If no venue is attached.
+            ValueError: If no venue is attached or no ID assigned.
         """
         if self._venue is None:
             raise ValueError("Cannot put content: asset has no attached venue")
+        if self._id is None:
+            raise ValueError("Cannot put content: asset has no ID (not yet registered)")
         return self._venue.put_asset_content(self._id, content)
 
     # ------------------------------------------------------------------
@@ -148,10 +171,12 @@ class Asset:
             A :class:`~covia.job.Job` for tracking the execution.
 
         Raises:
-            ValueError: If no venue is attached or the asset is not an operation.
+            ValueError: If no venue is attached or no ID assigned.
         """
         if self._venue is None:
             raise ValueError("Cannot invoke: asset has no attached venue")
+        if self._id is None:
+            raise ValueError("Cannot invoke: asset has no ID (not yet registered)")
         return self._venue.invoke(self._id, input)
 
     def run(self, input: Any = None, *, timeout: float | None = None) -> Any:
@@ -165,12 +190,14 @@ class Asset:
             The operation output.
 
         Raises:
-            ValueError: If no venue is attached.
+            ValueError: If no venue is attached or no ID assigned.
             JobFailedError: If the job finishes with a non-COMPLETE status.
             CoviaTimeoutError: If the timeout is exceeded.
         """
         if self._venue is None:
             raise ValueError("Cannot run: asset has no attached venue")
+        if self._id is None:
+            raise ValueError("Cannot run: asset has no ID (not yet registered)")
         return self._venue.run(self._id, input, timeout=timeout)
 
     # ------------------------------------------------------------------
@@ -178,13 +205,22 @@ class Asset:
     # ------------------------------------------------------------------
 
     def __repr__(self) -> str:
-        label = self.name or self._id[:16]
+        if self.name:
+            label = self.name
+        elif self._id is not None:
+            label = self._id[:16]
+        else:
+            label = "unregistered"
         return f"Asset({label!r})"
 
     def __eq__(self, other: object) -> bool:
         if isinstance(other, Asset):
+            if self._id is None or other._id is None:
+                return self is other
             return self._id == other._id
         return NotImplemented
 
     def __hash__(self) -> int:
+        if self._id is None:
+            return id(self)
         return hash(self._id)

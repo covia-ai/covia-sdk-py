@@ -174,6 +174,6 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on push/PR to `master`:
 ## Key Resources
 
 - **Covia Docs:** https://docs.covia.ai
-- **SDK Docs:** https://docs.covia.ai/sdk/python
+- **SDK Docs:** https://docs.covia.ai/docs/user-guide/sdk/python — lives in [covia-docs](https://github.com/covia-ai/covia-docs) repo at `docs/user-guide/sdk/python.md`
 - **Covia Discord:** https://discord.gg/fywdrKd8QT
 - **GitHub:** https://github.com/covia-ai/covia-sdk-py

@@ -21,6 +21,19 @@ from tests.conftest import VENUE_URL
 
 API_BASE = f"{VENUE_URL}/api/v1/"
 
+# Raw metadata strings and their content-addressed IDs for deterministic tests.
+_RAW_TEST_ASSET = '{"name": "Test Asset", "description": "A test"}'
+_ID_TEST_ASSET = Asset.compute_id(_RAW_TEST_ASSET)
+
+_RAW_TEST_ASSET_NAME_ONLY = '{"name": "Test Asset"}'
+_ID_TEST_ASSET_NAME_ONLY = Asset.compute_id(_RAW_TEST_ASSET_NAME_ONLY)
+
+_RAW_NEW_ASSET = '{"name": "New Asset"}'
+_ID_NEW_ASSET = Asset.compute_id(_RAW_NEW_ASSET)
+
+_RAW_FROM_ASSET = '{"name": "From Asset"}'
+_ID_FROM_ASSET = Asset.compute_id(_RAW_FROM_ASSET)
+
 
 class TestVenueStatus:
     def test_status(self, httpx_mock, venue):
@@ -51,32 +64,60 @@ class TestVenueAssets:
 
     def test_get_asset(self, httpx_mock, venue):
         httpx_mock.add_response(
-            url=f"{API_BASE}assets/abc123",
-            json={"name": "Test Asset", "description": "A test"},
+            url=f"{API_BASE}assets/{_ID_TEST_ASSET}",
+            text=_RAW_TEST_ASSET,
+            headers={"content-type": "application/json"},
         )
-        asset = venue.get_asset("abc123")
+        asset = venue.get_asset(_ID_TEST_ASSET)
         assert isinstance(asset, Asset)
-        assert asset.id == "abc123"
+        assert asset.id == _ID_TEST_ASSET
         assert asset.name == "Test Asset"
 
     def test_get_asset_preserves_raw_metadata(self, httpx_mock, venue):
         httpx_mock.add_response(
-            url=f"{API_BASE}assets/abc123",
-            json={"name": "Test Asset"},
+            url=f"{API_BASE}assets/{_ID_TEST_ASSET_NAME_ONLY}",
+            text=_RAW_TEST_ASSET_NAME_ONLY,
+            headers={"content-type": "application/json"},
         )
-        asset = venue.get_asset("abc123")
+        asset = venue.get_asset(_ID_TEST_ASSET_NAME_ONLY)
         assert asset.metadata_raw is not None
         assert '"name"' in asset.metadata_raw
         assert '"Test Asset"' in asset.metadata_raw
 
-    def test_register_asset(self, httpx_mock, venue):
+    def test_register_with_dict(self, httpx_mock, venue):
         httpx_mock.add_response(
             url=f"{API_BASE}assets",
-            text='"abc123"',
+            text=f'"{_ID_NEW_ASSET}"',
             status_code=201,
         )
-        asset_id = venue.register_asset({"name": "New Asset"})
-        assert asset_id == "abc123"
+        httpx_mock.add_response(
+            url=f"{API_BASE}assets/{_ID_NEW_ASSET}",
+            text=_RAW_NEW_ASSET,
+            headers={"content-type": "application/json"},
+        )
+        asset = venue.register({"name": "New Asset"})
+        assert isinstance(asset, Asset)
+        assert asset.id == _ID_NEW_ASSET
+        assert asset.name == "New Asset"
+        assert asset.venue is venue
+
+    def test_register_with_asset(self, httpx_mock, venue):
+        httpx_mock.add_response(
+            url=f"{API_BASE}assets",
+            text=f'"{_ID_FROM_ASSET}"',
+            status_code=201,
+        )
+        httpx_mock.add_response(
+            url=f"{API_BASE}assets/{_ID_FROM_ASSET}",
+            text=_RAW_FROM_ASSET,
+            headers={"content-type": "application/json"},
+        )
+        unregistered = Asset({"name": "From Asset"})
+        asset = venue.register(unregistered)
+        assert isinstance(asset, Asset)
+        assert asset.id == _ID_FROM_ASSET
+        assert asset.name == "From Asset"
+        assert asset.venue is venue
 
     def test_get_asset_content(self, httpx_mock, venue):
         httpx_mock.add_response(

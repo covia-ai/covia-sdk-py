@@ -108,20 +108,30 @@ class Venue:
 
         Args:
             asset_id: Hex asset identifier.
+
+        Raises:
+            ValueError: If the metadata hash does not match the requested ID.
         """
         metadata, metadata_raw = self._client.get_asset_metadata(asset_id)
-        return Asset(id=asset_id, metadata=metadata, venue=self, metadata_raw=metadata_raw)
+        if metadata_raw is not None:
+            computed = Asset.compute_id(metadata_raw)
+            if computed != asset_id:
+                raise ValueError(f"Asset ID mismatch: requested {asset_id!r} but metadata hashes to {computed!r}")
+        return Asset(metadata=metadata, id=asset_id, venue=self, metadata_raw=metadata_raw)
 
-    def register_asset(self, metadata: dict[str, Any]) -> str:
+    def register(self, asset: Asset | dict[str, Any]) -> Asset:
         """Register a new asset at this venue.
 
         Args:
-            metadata: Asset metadata dictionary.
+            asset: An :class:`Asset` instance or a metadata dictionary.
 
         Returns:
-            The new asset ID (hex string).
+            A registered :class:`Asset` with the server-assigned ID
+            and this venue attached.
         """
-        return self._client.register_asset(metadata)
+        metadata = asset.metadata if isinstance(asset, Asset) else asset
+        asset_id = self._client.register_asset(metadata)
+        return self.get_asset(asset_id)
 
     def get_asset_content(self, asset_id: str) -> bytes:
         """Download the binary content of an asset.
