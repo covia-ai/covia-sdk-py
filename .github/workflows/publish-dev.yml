@@ -1,0 +1,55 @@
+name: Publish Dev to TestPyPI
+
+on:
+  push:
+    branches: [develop]
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    needs: ci
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tools
+        run: pip install build
+
+      - name: Patch version with dev suffix
+        run: |
+          BASE=$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml)
+          DEV_VERSION="${BASE}.dev${{ github.run_number }}"
+          echo "DEV_VERSION=${DEV_VERSION}" >> "$GITHUB_ENV"
+          sed -i "s/^version = \".*\"/version = \"${DEV_VERSION}\"/" pyproject.toml
+          sed -i "s/^__version__ = \".*\"/__version__ = \"${DEV_VERSION}\"/" src/covia/__init__.py
+          echo "Patched version to ${DEV_VERSION}"
+
+      - name: Build package
+        run: python -m build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: testpypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
