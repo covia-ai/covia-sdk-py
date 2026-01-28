@@ -33,16 +33,20 @@ class JobStatus(StrEnum):
         return self in _PAUSED_STATUSES
 
 
-_FINISHED_STATUSES = frozenset({
-    JobStatus.COMPLETE,
-    JobStatus.FAILED,
-    JobStatus.CANCELLED,
-    JobStatus.REJECTED,
-    JobStatus.TIMEOUT,
-})
+_FINISHED_STATUSES = frozenset(
+    {
+        JobStatus.COMPLETE,
+        JobStatus.FAILED,
+        JobStatus.CANCELLED,
+        JobStatus.REJECTED,
+        JobStatus.TIMEOUT,
+    }
+)
 
-_PAUSED_STATUSES = frozenset({
-    JobStatus.PAUSED,
-    JobStatus.INPUT_REQUIRED,
-    JobStatus.AUTH_REQUIRED,
-})
+_PAUSED_STATUSES = frozenset(
+    {
+        JobStatus.PAUSED,
+        JobStatus.INPUT_REQUIRED,
+        JobStatus.AUTH_REQUIRED,
+    }
+)

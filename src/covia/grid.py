@@ -61,6 +61,9 @@ class Grid:
             ValueError: If *connection* is not a recognised format.
         """
         url = resolve_connection(connection)
+        # Auto-set audience for key-based auth if not already set
+        if auth is not None and hasattr(auth, "audience") and auth.audience is None:
+            auth.audience = connection
         config = TransportConfig(
             base_url=url,
             timeout=make_timeout(timeout),

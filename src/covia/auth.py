@@ -8,18 +8,24 @@ Built-in providers:
 - :class:`NoAuth` — no authentication (default when ``auth`` is omitted)
 - :class:`BearerAuth` — ``Authorization: Bearer <token>``
 - :class:`BasicAuth` — HTTP Basic authentication (``username:password``)
+- :class:`Ed25519Auth` — self-issued EdDSA JWT signed with Ed25519
+  (requires ``covia[signing]``)
 
 The interface is designed to accommodate future providers without
 breaking changes:
 
 - **OAuth 2.0** — token acquisition, refresh, and injection
-- **Ed25519 signing** — proof of key possession via request signing
 """
 
 from __future__ import annotations
 
 import base64
+import time
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 
 class Auth(ABC):
@@ -111,10 +117,173 @@ class BasicAuth(Auth):
         self._password = password
 
     def apply(self, headers: dict[str, str]) -> None:
-        credentials = base64.b64encode(
-            f"{self._username}:{self._password}".encode()
-        ).decode("ascii")
+        credentials = base64.b64encode(f"{self._username}:{self._password}".encode()).decode("ascii")
         headers["Authorization"] = f"Basic {credentials}"
 
     def __repr__(self) -> str:
         return f"BasicAuth(username={self._username!r}, password=<redacted>)"
+
+
+# ---------------------------------------------------------------------------
+# Ed25519 self-issued JWT auth
+# ---------------------------------------------------------------------------
+
+_B58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+_ED25519_MULTICODEC = b"\xed\x01"
+
+
+def _base58btc_encode(data: bytes) -> str:
+    """Encode bytes as base58btc (Bitcoin alphabet)."""
+    n_pad = len(data) - len(data.lstrip(b"\x00"))
+    n = int.from_bytes(data, "big")
+    if n == 0:
+        return "1" * max(n_pad, 1)
+    chars: list[str] = []
+    while n > 0:
+        n, r = divmod(n, 58)
+        chars.append(_B58_ALPHABET[r])
+    return "1" * n_pad + "".join(reversed(chars))
+
+
+def _public_key_to_did_key(public_key_bytes: bytes) -> str:
+    """Encode a 32-byte Ed25519 public key as a ``did:key`` DID."""
+    return f"did:key:z{_base58btc_encode(_ED25519_MULTICODEC + public_key_bytes)}"
+
+
+def _check_signing_deps() -> None:
+    """Raise a clear error if signing dependencies are not installed."""
+    try:
+        import cryptography  # noqa: F401
+        import jwt  # noqa: F401
+    except ImportError as e:
+        raise ImportError("Ed25519Auth requires the 'signing' extra: pip install covia[signing]") from e
+
+
+class Ed25519Auth(Auth):
+    """Self-issued EdDSA JWT authentication using an Ed25519 key pair.
+
+    Each request carries a short-lived JWT in the ``Authorization: Bearer``
+    header. The JWT is signed with the client's Ed25519 private key and
+    includes the client's ``did:key`` as the ``iss`` (issuer) claim. The
+    venue verifies the signature by extracting the public key from the DID.
+
+    Requires the ``signing`` extra::
+
+        pip install covia[signing]
+
+    Example::
+
+        from covia import Grid
+        from covia.auth import Ed25519Auth
+
+        auth = Ed25519Auth.generate(audience="did:web:venue.covia.ai")
+        print(auth.did)  # did:key:z6Mk...
+
+        with Grid.connect("did:web:venue.covia.ai", auth=auth) as venue:
+            result = venue.run("my-operation", {"prompt": "hello"})
+    """
+
+    def __init__(
+        self,
+        private_key: Ed25519PrivateKey,
+        *,
+        audience: str | None = None,
+        token_lifetime: int = 300,
+    ) -> None:
+        _check_signing_deps()
+        from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+
+        self._private_key = private_key
+        raw = private_key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+        self._public_key_bytes = raw
+        self._did = _public_key_to_did_key(raw)
+        self._audience = audience
+        self._token_lifetime = token_lifetime
+
+    @classmethod
+    def generate(
+        cls,
+        *,
+        audience: str | None = None,
+        token_lifetime: int = 300,
+    ) -> Ed25519Auth:
+        """Generate a new random Ed25519 key pair.
+
+        Args:
+            audience: Venue DID or URL for the JWT ``aud`` claim.
+            token_lifetime: JWT validity in seconds (default 300).
+        """
+        _check_signing_deps()
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+        return cls(
+            Ed25519PrivateKey.generate(),
+            audience=audience,
+            token_lifetime=token_lifetime,
+        )
+
+    @classmethod
+    def from_seed(
+        cls,
+        seed: bytes,
+        *,
+        audience: str | None = None,
+        token_lifetime: int = 300,
+    ) -> Ed25519Auth:
+        """Create from a 32-byte Ed25519 seed (private key bytes).
+
+        Args:
+            seed: 32-byte Ed25519 private key seed.
+            audience: Venue DID or URL for the JWT ``aud`` claim.
+            token_lifetime: JWT validity in seconds (default 300).
+        """
+        _check_signing_deps()
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+        return cls(
+            Ed25519PrivateKey.from_private_bytes(seed),
+            audience=audience,
+            token_lifetime=token_lifetime,
+        )
+
+    @property
+    def did(self) -> str:
+        """The ``did:key`` DID derived from the Ed25519 public key."""
+        return self._did
+
+    @property
+    def public_key_bytes(self) -> bytes:
+        """The raw 32-byte Ed25519 public key."""
+        return self._public_key_bytes
+
+    @property
+    def audience(self) -> str | None:
+        """The JWT ``aud`` claim value (venue DID or URL)."""
+        return self._audience
+
+    @audience.setter
+    def audience(self, value: str | None) -> None:
+        self._audience = value
+
+    def apply(self, headers: dict[str, str]) -> None:
+        import jwt
+
+        now = int(time.time())
+        payload: dict[str, object] = {
+            "iss": self._did,
+            "sub": self._did,
+            "iat": now,
+            "exp": now + self._token_lifetime,
+        }
+        if self._audience is not None:
+            payload["aud"] = self._audience
+        token: str = jwt.encode(
+            payload,
+            self._private_key,
+            algorithm="EdDSA",
+            headers={"kid": self._did},
+        )
+        headers["Authorization"] = f"Bearer {token}"
+
+    def __repr__(self) -> str:
+        return f"Ed25519Auth(did={self._did!r}, audience={self._audience!r})"

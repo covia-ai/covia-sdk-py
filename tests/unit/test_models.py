@@ -33,9 +33,7 @@ class TestVenueStatus:
         assert status.name == "Test"
 
     def test_extra_fields_allowed(self):
-        status = VenueStatus.model_validate(
-            {"did": "did:web:test", "url": "https://test", "custom_field": "value"}
-        )
+        status = VenueStatus.model_validate({"did": "did:web:test", "url": "https://test", "custom_field": "value"})
         assert status.did == "did:web:test"
 
 
@@ -61,9 +59,7 @@ class TestJobData:
         assert jd.status == JobStatus.STARTED
 
     def test_extra_fields_allowed(self):
-        jd = JobData.model_validate(
-            {"id": "j4", "status": "PENDING", "custom": "data"}
-        )
+        jd = JobData.model_validate({"id": "j4", "status": "PENDING", "custom": "data"})
         assert jd.id == "j4"
 
     def test_default_status(self):
@@ -83,15 +79,11 @@ class TestDIDDocument:
         assert doc.id == "did:web:test"
 
     def test_context_alias(self):
-        doc = DIDDocument.model_validate(
-            {"id": "did:web:test", "@context": "https://www.w3.org/ns/did/v1"}
-        )
+        doc = DIDDocument.model_validate({"id": "did:web:test", "@context": "https://www.w3.org/ns/did/v1"})
         assert doc.context == "https://www.w3.org/ns/did/v1"
 
     def test_extra_fields(self):
-        doc = DIDDocument.model_validate(
-            {"id": "did:web:test", "verificationMethod": []}
-        )
+        doc = DIDDocument.model_validate({"id": "did:web:test", "verificationMethod": []})
         assert doc.id == "did:web:test"
 
 

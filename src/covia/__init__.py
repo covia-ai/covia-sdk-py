@@ -9,7 +9,7 @@ Connect to a Covia venue and invoke operations::
 """
 
 from covia.asset import Asset
-from covia.auth import Auth, BasicAuth, BearerAuth, NoAuth
+from covia.auth import Auth, BasicAuth, BearerAuth, Ed25519Auth, NoAuth
 from covia.exceptions import (
     AssetNotFoundError,
     CoviaConnectionError,
@@ -56,6 +56,7 @@ __all__ = [
     "NoAuth",
     "BearerAuth",
     "BasicAuth",
+    "Ed25519Auth",
     # Models
     "VenueStatus",
     "AssetList",
