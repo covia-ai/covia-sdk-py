@@ -5,6 +5,7 @@ Mirrors ``covia.grid.Job`` from the Java SDK.
 
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any
@@ -16,6 +17,8 @@ from covia.status import JobStatus
 
 if TYPE_CHECKING:
     from covia.venue import Venue
+
+logger = logging.getLogger(__name__)
 
 # Polling backoff constants (matching Java VenueHTTP)
 _INITIAL_POLL_DELAY = 0.3  # seconds
@@ -133,14 +136,14 @@ class Job:
 
         delay = _INITIAL_POLL_DELAY
         start = time.monotonic()
+        logger.debug("Polling job %s (status: %s)", self.id, self.status)
 
         while not self.is_finished:
             if timeout is not None and (time.monotonic() - start) > timeout:
-                raise CoviaTimeoutError(
-                    f"Job {self.id} did not finish within {timeout}s"
-                )
+                raise CoviaTimeoutError(f"Job {self.id} did not finish within {timeout}s")
             time.sleep(delay)
             self.refresh()
+            logger.debug("Job %s polled → %s (delay=%.1fs)", self.id, self.status, delay)
             delay = min(delay * _BACKOFF_FACTOR, _MAX_POLL_DELAY)
 
     def cancel(self) -> None:

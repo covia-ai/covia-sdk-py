@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -19,6 +20,8 @@ from covia.models import (
     OperationInfo,
     VenueStatus,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class AsyncVenue:
@@ -69,9 +72,11 @@ class AsyncVenue:
         and cached for subsequent calls.
         """
         if not self._did_resolved:
+            logger.debug("Fetching DID document for %s", self._config.base_url)
             doc = await self._client.get_did_document()
             self._did = doc.id
             self._did_resolved = True
+            logger.debug("Resolved venue DID: %s", self._did)
         return self._did
 
     async def did_document(self) -> DIDDocument:

@@ -9,7 +9,7 @@ Usage:
 import os
 
 from covia import (
-    CoviaAPIError,
+    GridError,
     CoviaConnectionError,
     CoviaError,
     CoviaTimeoutError,
@@ -33,7 +33,7 @@ except CoviaTimeoutError:
     # Polling exceeded the timeout we specified
     print("Timed out waiting for the operation to complete")
 
-except CoviaAPIError as e:
+except GridError as e:
     # The venue returned an HTTP error (4xx / 5xx)
     print(f"API error {e.status_code}: {e.message}")
 

@@ -12,7 +12,7 @@ class CoviaError(Exception):
     """Base exception for all Covia SDK errors."""
 
 
-class CoviaAPIError(CoviaError):
+class GridError(CoviaError):
     """Raised when the Covia API returns an error response (4xx/5xx)."""
 
     def __init__(
@@ -27,12 +27,20 @@ class CoviaAPIError(CoviaError):
         super().__init__(f"HTTP {status_code}: {message}")
 
 
-class CoviaConnectionError(CoviaError):
-    """Raised when the SDK cannot connect to the venue."""
+class CoviaConnectionError(CoviaError, ConnectionError):
+    """Raised when the SDK cannot connect to the venue.
+
+    Subclasses both :class:`CoviaError` and Python's built-in
+    :class:`ConnectionError`, so it can be caught with either.
+    """
 
 
-class CoviaTimeoutError(CoviaError):
-    """Raised when an operation or polling loop times out."""
+class CoviaTimeoutError(CoviaError, TimeoutError):
+    """Raised when an operation or polling loop times out.
+
+    Subclasses both :class:`CoviaError` and Python's built-in
+    :class:`TimeoutError`, so it can be caught with either.
+    """
 
 
 class JobFailedError(CoviaError):
@@ -46,17 +54,28 @@ class JobFailedError(CoviaError):
         super().__init__(msg)
 
 
-class AssetNotFoundError(CoviaAPIError):
+class NotFoundError(GridError):
+    """Raised when a requested resource is not found (404).
+
+    Base class for :class:`AssetNotFoundError` and :class:`JobNotFoundError`.
+    Catch this to handle any 404 uniformly.
+    """
+
+    def __init__(self, message: str) -> None:
+        super().__init__(404, message)
+
+
+class AssetNotFoundError(NotFoundError):
     """Raised when an asset is not found (404)."""
 
     def __init__(self, asset_id: str) -> None:
         self.asset_id = asset_id
-        super().__init__(404, f"Asset not found: {asset_id}")
+        super().__init__(f"Asset not found: {asset_id}")
 
 
-class JobNotFoundError(CoviaAPIError):
+class JobNotFoundError(NotFoundError):
     """Raised when a job is not found (404)."""
 
     def __init__(self, job_id: str) -> None:
         self.job_id = job_id
-        super().__init__(404, f"Job not found: {job_id}")
+        super().__init__(f"Job not found: {job_id}")

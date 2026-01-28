@@ -12,12 +12,13 @@ from covia.asset import Asset
 from covia.auth import Auth, BasicAuth, BearerAuth, NoAuth
 from covia.exceptions import (
     AssetNotFoundError,
-    CoviaAPIError,
     CoviaConnectionError,
     CoviaError,
     CoviaTimeoutError,
+    GridError,
     JobFailedError,
     JobNotFoundError,
+    NotFoundError,
 )
 from covia.grid import Grid
 from covia.job import Job
@@ -35,6 +36,12 @@ from covia.status import JobStatus
 from covia.venue import Venue
 
 __version__ = "0.1.0"
+
+# Library-level NullHandler — prevents "No handlers could be found" warnings.
+# Users must configure logging themselves to see SDK log output.
+import logging as _logging
+
+_logging.getLogger("covia").addHandler(_logging.NullHandler())
 
 __all__ = [
     "__version__",
@@ -60,10 +67,11 @@ __all__ = [
     "OperationInfo",
     # Exceptions
     "CoviaError",
-    "CoviaAPIError",
+    "GridError",
     "CoviaConnectionError",
     "CoviaTimeoutError",
     "JobFailedError",
+    "NotFoundError",
     "AssetNotFoundError",
     "JobNotFoundError",
 ]

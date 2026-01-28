@@ -71,7 +71,7 @@ src/covia/
 
 **Models:** `VenueStatus`, `AssetList`, `JobData`, `DIDDocument`, `MCPDiscovery`, `AgentCard`, `InvokeRequest`
 
-**Exceptions:** `CoviaError`, `CoviaAPIError`, `CoviaConnectionError`, `CoviaTimeoutError`, `JobFailedError`, `AssetNotFoundError`, `JobNotFoundError`
+**Exceptions:** `CoviaError`, `GridError`, `CoviaConnectionError`, `CoviaTimeoutError`, `JobFailedError`, `AssetNotFoundError`, `JobNotFoundError`
 
 **Async variants:** `covia.async_api.AsyncGrid`, `AsyncVenue`, `AsyncJob`
 

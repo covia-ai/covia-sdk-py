@@ -158,7 +158,7 @@ async def main():
 ### Error Handling
 
 ```python
-from covia import Grid, CoviaError, CoviaAPIError, JobFailedError, CoviaTimeoutError
+from covia import Grid, CoviaError, GridError, JobFailedError, CoviaTimeoutError
 
 try:
     result = venue.run("might-fail", {"x": 1}, timeout=30)
@@ -166,7 +166,7 @@ except JobFailedError as e:
     print(f"Job failed: {e.job_data.error}")
 except CoviaTimeoutError:
     print("Operation timed out")
-except CoviaAPIError as e:
+except GridError as e:
     print(f"API error {e.status_code}: {e.message}")
 except CoviaError as e:
     print(f"SDK error: {e}")

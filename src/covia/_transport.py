@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -9,6 +10,8 @@ import httpx
 
 if TYPE_CHECKING:
     from covia.auth import Auth
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT = httpx.Timeout(
     connect=10.0,
@@ -55,10 +58,14 @@ def resolve_connection(connection: str) -> str:
     """
     connection = connection.strip()
     if connection.startswith(("http://", "https://")):
+        if connection.startswith("http://"):
+            logger.warning("Connecting over plain HTTP (no TLS): %s", connection)
         return connection
     if connection.startswith("did:web:"):
         host = connection.removeprefix("did:web:")
-        return f"https://{host}"
+        url = f"https://{host}"
+        logger.debug("Resolved DID %s → %s", connection, url)
+        return url
     raise ValueError(f"Unrecognised connection format: {connection!r}")
 
 

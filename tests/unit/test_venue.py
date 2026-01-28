@@ -2,7 +2,21 @@
 
 from __future__ import annotations
 
-from covia import Asset, Grid, Job, JobStatus, Venue
+import pytest
+
+from covia import (
+    Asset,
+    AssetNotFoundError,
+    CoviaConnectionError,
+    CoviaTimeoutError,
+    Grid,
+    GridError,
+    Job,
+    JobNotFoundError,
+    JobStatus,
+    NotFoundError,
+    Venue,
+)
 from tests.conftest import VENUE_URL
 
 API_BASE = f"{VENUE_URL}/api/v1/"
@@ -204,6 +218,63 @@ class TestVenueDiscovery:
         card = venue.agent_card()
         assert card.agentProvider is not None
         assert card.agentProvider["name"] == "Covia"
+
+
+class TestVenueErrorHandling:
+    def test_get_asset_404_raises_asset_not_found(self, httpx_mock, venue):
+        httpx_mock.add_response(url=f"{API_BASE}assets/missing", status_code=404, json={"error": "not found"})
+        with pytest.raises(AssetNotFoundError) as exc_info:
+            venue.get_asset("missing")
+        assert exc_info.value.asset_id == "missing"
+
+    def test_get_asset_content_404_raises_asset_not_found(self, httpx_mock, venue):
+        httpx_mock.add_response(url=f"{API_BASE}assets/missing/content", status_code=404)
+        with pytest.raises(AssetNotFoundError):
+            venue.get_asset_content("missing")
+
+    def test_asset_not_found_is_catchable_as_not_found(self, httpx_mock, venue):
+        httpx_mock.add_response(url=f"{API_BASE}assets/missing", status_code=404)
+        with pytest.raises(NotFoundError):
+            venue.get_asset("missing")
+
+    def test_asset_not_found_is_catchable_as_api_error(self, httpx_mock, venue):
+        httpx_mock.add_response(url=f"{API_BASE}assets/missing", status_code=404)
+        with pytest.raises(GridError):
+            venue.get_asset("missing")
+
+    def test_get_asset_500_raises_api_error(self, httpx_mock, venue):
+        httpx_mock.add_response(url=f"{API_BASE}assets/abc", status_code=500, json={"error": "boom"})
+        with pytest.raises(GridError) as exc_info:
+            venue.get_asset("abc")
+        assert not isinstance(exc_info.value, AssetNotFoundError)
+        assert exc_info.value.status_code == 500
+
+    def test_get_job_404_raises_job_not_found(self, httpx_mock, venue):
+        httpx_mock.add_response(url=f"{API_BASE}jobs/missing", status_code=404, json={"error": "not found"})
+        with pytest.raises(JobNotFoundError) as exc_info:
+            venue.get_job("missing")
+        assert exc_info.value.job_id == "missing"
+
+    def test_cancel_job_404_raises_job_not_found(self, httpx_mock, venue):
+        httpx_mock.add_response(url=f"{API_BASE}jobs/missing/cancel", status_code=404)
+        with pytest.raises(JobNotFoundError):
+            venue.cancel_job("missing")
+
+    def test_job_not_found_is_catchable_as_not_found(self, httpx_mock, venue):
+        httpx_mock.add_response(url=f"{API_BASE}jobs/missing", status_code=404)
+        with pytest.raises(NotFoundError):
+            venue.get_job("missing")
+
+    def test_job_not_found_is_catchable_as_api_error(self, httpx_mock, venue):
+        httpx_mock.add_response(url=f"{API_BASE}jobs/missing", status_code=404)
+        with pytest.raises(GridError):
+            venue.get_job("missing")
+
+    def test_connection_error_is_standard(self):
+        assert issubclass(CoviaConnectionError, ConnectionError)
+
+    def test_timeout_error_is_standard(self):
+        assert issubclass(CoviaTimeoutError, TimeoutError)
 
 
 class TestVenueContextManager:

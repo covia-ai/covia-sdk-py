@@ -5,6 +5,7 @@ Mirrors ``covia.grid.Grid`` from the Java SDK.
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 from covia._transport import TransportConfig, make_timeout, resolve_connection
@@ -12,6 +13,8 @@ from covia.venue import Venue
 
 if TYPE_CHECKING:
     from covia.auth import Auth
+
+logger = logging.getLogger(__name__)
 
 
 class Grid:
@@ -64,4 +67,5 @@ class Grid:
             headers=headers or {},
             auth=auth,
         )
+        logger.debug("Connecting to venue: %s", url)
         return Venue(config)

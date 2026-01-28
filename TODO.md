@@ -24,19 +24,21 @@ Generic `Auth` interface added (`covia.auth`). `Grid.connect()` and
 `NoAuth`, `BearerAuth`, `BasicAuth`. Interface is extensible for future
 OAuth 2.0 and Ed25519 signing providers.
 
-## 3. Specialized exceptions are never raised
+## 3. ~~Specialized exceptions are never raised~~ DONE
 
-`AssetNotFoundError` and `JobNotFoundError` are defined in `exceptions.py` but
-never instantiated anywhere. The HTTP client (_client.py:203-217) maps all error
-responses to generic `CoviaAPIError`. 404 responses for asset/job endpoints
-should be caught and re-raised as the appropriate subclass.
+Asset/job methods now raise `AssetNotFoundError` / `JobNotFoundError` on 404
+via thin `_request_asset` / `_request_job` helpers in both clients. Non-404
+errors still raise `GridError`. `CoviaConnectionError` and
+`CoviaTimeoutError` now also subclass Python's built-in `ConnectionError` and
+`TimeoutError` for idiomatic `except` usage.
 
-## 4. No logging
+## 4. ~~No logging~~ DONE
 
-Zero logging statements across the entire SDK. No way to trace HTTP requests,
-poll cycles, or SSE events during debugging. The Java SDK uses SLF4J extensively.
-Integrate Python's `logging` module at key points: connection, requests, polling,
-errors.
+Added `logging` module integration across the SDK. `NullHandler` on the root
+`covia` logger (silent by default). DEBUG-level tracing for HTTP requests/responses,
+DID resolution, connection establishment, and job polling cycles. WARNING for
+plain HTTP (non-TLS) connections. Library never configures handlers — users
+opt-in via standard `logging.basicConfig()` or handler setup.
 
 ## 5. No retry/resilience on transient failures
 

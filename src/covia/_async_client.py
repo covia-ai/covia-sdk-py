@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -10,7 +11,13 @@ from httpx_sse import aconnect_sse
 
 from covia._sse import SSEEvent
 from covia._transport import TransportConfig
-from covia.exceptions import CoviaAPIError, CoviaConnectionError, CoviaTimeoutError
+from covia.exceptions import (
+    AssetNotFoundError,
+    CoviaConnectionError,
+    CoviaTimeoutError,
+    GridError,
+    JobNotFoundError,
+)
 from covia.models import (
     AgentCard,
     AssetList,
@@ -20,6 +27,8 @@ from covia.models import (
     OperationInfo,
     VenueStatus,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class AsyncCoviaHTTPClient:
@@ -81,18 +90,18 @@ class AsyncCoviaHTTPClient:
             The raw text is preserved for asset ID computation/validation
             (asset IDs are the SHA-256 hash of canonical metadata bytes).
         """
-        resp = await self._request("GET", f"assets/{asset_id}")
+        resp = await self._request_asset("GET", f"assets/{asset_id}", asset_id)
         result: dict[str, Any] = resp.json()
         return result, resp.text
 
     async def get_asset_content(self, asset_id: str) -> bytes:
         """``GET /api/v1/assets/{id}/content``"""
-        resp = await self._request("GET", f"assets/{asset_id}/content")
+        resp = await self._request_asset("GET", f"assets/{asset_id}/content", asset_id)
         return resp.content
 
     async def put_asset_content(self, asset_id: str, content: bytes) -> str:
         """``PUT /api/v1/assets/{id}/content`` — returns the content hash."""
-        resp = await self._request("PUT", f"assets/{asset_id}/content", content=content)
+        resp = await self._request_asset("PUT", f"assets/{asset_id}/content", asset_id, content=content)
         return resp.text.strip().strip('"')
 
     # ------------------------------------------------------------------
@@ -109,7 +118,7 @@ class AsyncCoviaHTTPClient:
 
     async def get_job(self, job_id: str) -> JobData:
         """``GET /api/v1/jobs/{id}``"""
-        resp = await self._request("GET", f"jobs/{job_id}")
+        resp = await self._request_job("GET", f"jobs/{job_id}", job_id)
         return JobData.model_validate(resp.json())
 
     async def list_jobs(self) -> list[str]:
@@ -120,12 +129,12 @@ class AsyncCoviaHTTPClient:
 
     async def cancel_job(self, job_id: str) -> JobData:
         """``PUT /api/v1/jobs/{id}/cancel``"""
-        resp = await self._request("PUT", f"jobs/{job_id}/cancel")
+        resp = await self._request_job("PUT", f"jobs/{job_id}/cancel", job_id)
         return JobData.model_validate(resp.json())
 
     async def delete_job(self, job_id: str) -> None:
         """``PUT /api/v1/jobs/{id}/delete``"""
-        await self._request("PUT", f"jobs/{job_id}/delete")
+        await self._request_job("PUT", f"jobs/{job_id}/delete", job_id)
 
     async def stream_job_events(self, job_id: str) -> AsyncIterator[SSEEvent]:
         """``GET /api/v1/jobs/{id}/sse`` — yields SSE events."""
@@ -184,27 +193,53 @@ class AsyncCoviaHTTPClient:
     # Internal helpers
     # ------------------------------------------------------------------
 
+    async def _request_asset(self, method: str, path: str, asset_id: str, **kwargs: Any) -> httpx.Response:
+        """Like ``_request`` but raises :class:`AssetNotFoundError` on 404."""
+        try:
+            return await self._request(method, path, **kwargs)
+        except GridError as exc:
+            if exc.status_code == 404:
+                raise AssetNotFoundError(asset_id) from exc
+            raise
+
+    async def _request_job(self, method: str, path: str, job_id: str, **kwargs: Any) -> httpx.Response:
+        """Like ``_request`` but raises :class:`JobNotFoundError` on 404."""
+        try:
+            return await self._request(method, path, **kwargs)
+        except GridError as exc:
+            if exc.status_code == 404:
+                raise JobNotFoundError(job_id) from exc
+            raise
+
     async def _request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
         """Make an API request (relative to the /api/v1/ base)."""
         self._apply_auth(kwargs)
+        logger.debug("%s %s", method, path)
         try:
             response = await self._client.request(method, path, **kwargs)
         except httpx.ConnectError as exc:
+            logger.debug("Connection failed: %s %s — %s", method, path, exc)
             raise CoviaConnectionError(str(exc)) from exc
         except httpx.TimeoutException as exc:
+            logger.debug("Request timed out: %s %s — %s", method, path, exc)
             raise CoviaTimeoutError(str(exc)) from exc
+        logger.debug("%s %s → %d", method, path, response.status_code)
         self._handle_error(response)
         return response
 
     async def _raw_request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
         """Make a request to an absolute URL (for discovery endpoints)."""
         self._apply_auth(kwargs)
+        logger.debug("%s %s", method, url)
         try:
             response = await self._client.request(method, url, **kwargs)
         except httpx.ConnectError as exc:
+            logger.debug("Connection failed: %s %s — %s", method, url, exc)
             raise CoviaConnectionError(str(exc)) from exc
         except httpx.TimeoutException as exc:
+            logger.debug("Request timed out: %s %s — %s", method, url, exc)
             raise CoviaTimeoutError(str(exc)) from exc
+        logger.debug("%s %s → %d", method, url, response.status_code)
         self._handle_error(response)
         return response
 
@@ -228,7 +263,7 @@ class AsyncCoviaHTTPClient:
         except Exception:
             body = None
             message = response.text
-        raise CoviaAPIError(
+        raise GridError(
             status_code=response.status_code,
             message=message,
             response_body=body,

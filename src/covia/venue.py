@@ -5,6 +5,7 @@ Mirrors ``covia.grid.Venue`` from the Java SDK.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterator
 from typing import Any
 
@@ -22,6 +23,8 @@ from covia.models import (
     OperationInfo,
     VenueStatus,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class Venue:
@@ -76,9 +79,11 @@ class Venue:
         and cached for subsequent calls.
         """
         if not self._did_resolved:
+            logger.debug("Fetching DID document for %s", self._config.base_url)
             doc = self._client.get_did_document()
             self._did = doc.id
             self._did_resolved = True
+            logger.debug("Resolved venue DID: %s", self._did)
         return self._did
 
     def did_document(self) -> DIDDocument:
