@@ -73,11 +73,17 @@ class CoviaHTTPClient:
         resp = self._request("POST", "assets", json=metadata)
         return resp.text.strip().strip('"')
 
-    def get_asset_metadata(self, asset_id: str) -> dict[str, Any]:
-        """``GET /api/v1/assets/{id}``"""
+    def get_asset_metadata(self, asset_id: str) -> tuple[dict[str, Any], str]:
+        """``GET /api/v1/assets/{id}``
+
+        Returns:
+            A tuple of (parsed metadata dict, raw UTF-8 response text).
+            The raw text is preserved for asset ID computation/validation
+            (asset IDs are the SHA-256 hash of canonical metadata bytes).
+        """
         resp = self._request("GET", f"assets/{asset_id}")
         result: dict[str, Any] = resp.json()
-        return result
+        return result, resp.text
 
     def get_asset_content(self, asset_id: str) -> bytes:
         """``GET /api/v1/assets/{id}/content``"""
@@ -180,6 +186,7 @@ class CoviaHTTPClient:
 
     def _request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
         """Make an API request (relative to the /api/v1/ base)."""
+        self._apply_auth(kwargs)
         try:
             response = self._client.request(method, path, **kwargs)
         except httpx.ConnectError as exc:
@@ -191,6 +198,7 @@ class CoviaHTTPClient:
 
     def _raw_request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
         """Make a request to an absolute URL (for discovery endpoints)."""
+        self._apply_auth(kwargs)
         try:
             response = self._client.request(method, url, **kwargs)
         except httpx.ConnectError as exc:
@@ -199,6 +207,16 @@ class CoviaHTTPClient:
             raise CoviaTimeoutError(str(exc)) from exc
         self._handle_error(response)
         return response
+
+    def _apply_auth(self, kwargs: dict[str, Any]) -> None:
+        """Inject authentication headers into request kwargs."""
+        if self._config.auth is not None:
+            auth_headers: dict[str, str] = {}
+            self._config.auth.apply(auth_headers)
+            if auth_headers:
+                headers = dict(kwargs.get("headers", {}))
+                headers.update(auth_headers)
+                kwargs["headers"] = headers
 
     def _handle_error(self, response: httpx.Response) -> None:
         """Raise an appropriate exception for error responses."""

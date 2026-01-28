@@ -42,6 +42,8 @@ class Venue:
     def __init__(self, config: TransportConfig) -> None:
         self._client = CoviaHTTPClient(config)
         self._config = config
+        self._did: str | None = None
+        self._did_resolved: bool = False
 
     def close(self) -> None:
         """Close the underlying HTTP connection pool."""
@@ -68,9 +70,16 @@ class Venue:
 
     @property
     def did(self) -> str | None:
-        """The DID of this venue, if available."""
-        doc = self._client.get_did_document()
-        return doc.id
+        """The DID of this venue, if available.
+
+        The value is fetched from the venue's DID document on first access
+        and cached for subsequent calls.
+        """
+        if not self._did_resolved:
+            doc = self._client.get_did_document()
+            self._did = doc.id
+            self._did_resolved = True
+        return self._did
 
     def did_document(self) -> DIDDocument:
         """Get the full DID document for this venue."""
@@ -95,8 +104,8 @@ class Venue:
         Args:
             asset_id: Hex asset identifier.
         """
-        metadata = self._client.get_asset_metadata(asset_id)
-        return Asset(id=asset_id, metadata=metadata, venue=self)
+        metadata, metadata_raw = self._client.get_asset_metadata(asset_id)
+        return Asset(id=asset_id, metadata=metadata, venue=self, metadata_raw=metadata_raw)
 
     def register_asset(self, metadata: dict[str, Any]) -> str:
         """Register a new asset at this venue.

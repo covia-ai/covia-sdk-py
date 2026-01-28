@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 import httpx
+
+if TYPE_CHECKING:
+    from covia.auth import Auth
 
 DEFAULT_TIMEOUT = httpx.Timeout(
     connect=10.0,
@@ -24,6 +28,7 @@ class TransportConfig:
     timeout: httpx.Timeout = field(default_factory=lambda: DEFAULT_TIMEOUT)
     headers: dict[str, str] = field(default_factory=dict)
     follow_redirects: bool = True
+    auth: Auth | None = None
 
     @property
     def api_url(self) -> str:

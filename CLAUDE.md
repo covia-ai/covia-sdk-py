@@ -140,7 +140,7 @@ Integration tests are excluded by default. Run explicitly with `-m integration` 
 
 ## CI/CD
 
-GitHub Actions (`.github/workflows/ci.yml`) runs on push/PR to `main`:
+GitHub Actions (`.github/workflows/ci.yml`) runs on push/PR to `master`:
 
 1. **Matrix:** Python 3.10, 3.11, 3.12, 3.13 on Ubuntu
 2. **Lint:** `ruff check`
@@ -153,8 +153,7 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on push/PR to `main`:
 
 ## Branch Strategy
 
-- **`master`** — Primary branch
-- CI configured to trigger on `main` (align as needed)
+- **`master`** — Primary branch (release and production code)
 - Feature branches and PRs as needed
 
 ---

@@ -36,6 +36,8 @@ class AsyncVenue:
     def __init__(self, config: TransportConfig) -> None:
         self._client = AsyncCoviaHTTPClient(config)
         self._config = config
+        self._did: str | None = None
+        self._did_resolved: bool = False
 
     async def aclose(self) -> None:
         """Close the underlying HTTP connection pool."""
@@ -61,9 +63,16 @@ class AsyncVenue:
         return self._config.base_url
 
     async def get_did(self) -> str | None:
-        """The DID of this venue, if available."""
-        doc = await self._client.get_did_document()
-        return doc.id
+        """The DID of this venue, if available.
+
+        The value is fetched from the venue's DID document on first access
+        and cached for subsequent calls.
+        """
+        if not self._did_resolved:
+            doc = await self._client.get_did_document()
+            self._did = doc.id
+            self._did_resolved = True
+        return self._did
 
     async def did_document(self) -> DIDDocument:
         """Get the full DID document for this venue."""
@@ -79,8 +88,8 @@ class AsyncVenue:
 
     async def get_asset(self, asset_id: str) -> Asset:
         """Get an asset by its ID."""
-        metadata = await self._client.get_asset_metadata(asset_id)
-        return Asset(id=asset_id, metadata=metadata)
+        metadata, metadata_raw = await self._client.get_asset_metadata(asset_id)
+        return Asset(id=asset_id, metadata=metadata, metadata_raw=metadata_raw)
 
     async def register_asset(self, metadata: dict[str, Any]) -> str:
         """Register a new asset. Returns the asset ID."""

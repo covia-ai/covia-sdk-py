@@ -45,6 +45,16 @@ class TestVenueAssets:
         assert asset.id == "abc123"
         assert asset.name == "Test Asset"
 
+    def test_get_asset_preserves_raw_metadata(self, httpx_mock, venue):
+        httpx_mock.add_response(
+            url=f"{API_BASE}assets/abc123",
+            json={"name": "Test Asset"},
+        )
+        asset = venue.get_asset("abc123")
+        assert asset.metadata_raw is not None
+        assert '"name"' in asset.metadata_raw
+        assert '"Test Asset"' in asset.metadata_raw
+
     def test_register_asset(self, httpx_mock, venue):
         httpx_mock.add_response(
             url=f"{API_BASE}assets",
@@ -135,6 +145,38 @@ class TestVenueJobs:
             text="",
         )
         venue.delete_job("job001")  # Should not raise
+
+
+class TestVenueDIDCaching:
+    def test_did_fetches_on_first_access(self, httpx_mock, venue):
+        httpx_mock.add_response(
+            url=f"{VENUE_URL}/.well-known/did.json",
+            json={"id": "did:web:test.covia.ai"},
+        )
+        assert venue.did == "did:web:test.covia.ai"
+
+    def test_did_caches_after_first_access(self, httpx_mock, venue):
+        httpx_mock.add_response(
+            url=f"{VENUE_URL}/.well-known/did.json",
+            json={"id": "did:web:test.covia.ai"},
+        )
+        # First access fetches
+        did1 = venue.did
+        # Second access uses cache — no additional HTTP request
+        did2 = venue.did
+        assert did1 == did2 == "did:web:test.covia.ai"
+        # Only one request should have been made
+        assert len(httpx_mock.get_requests()) == 1
+
+    def test_did_document_not_affected_by_cache(self, httpx_mock, venue):
+        httpx_mock.add_response(
+            url=f"{VENUE_URL}/.well-known/did.json",
+            json={"id": "did:web:test.covia.ai", "@context": "https://www.w3.org/ns/did/v1"},
+        )
+        # did_document() always fetches the full document, independent of did cache
+        doc = venue.did_document()
+        assert doc.id == "did:web:test.covia.ai"
+        assert doc.context == "https://www.w3.org/ns/did/v1"
 
 
 class TestVenueDiscovery:

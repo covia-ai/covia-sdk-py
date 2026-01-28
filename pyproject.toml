@@ -51,7 +51,7 @@ docs = [
 Homepage = "https://covia.ai"
 Documentation = "https://docs.covia.ai/sdk/python"
 Repository = "https://github.com/covia-ai/covia-sdk-py"
-Changelog = "https://github.com/covia-ai/covia-sdk-py/blob/main/CHANGELOG.md"
+Changelog = "https://github.com/covia-ai/covia-sdk-py/blob/master/CHANGELOG.md"
 Issues = "https://github.com/covia-ai/covia-sdk-py/issues"
 
 [tool.hatch.build.targets.wheel]

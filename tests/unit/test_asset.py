@@ -27,6 +27,15 @@ class TestAssetProperties:
         asset = Asset(id="a1", metadata={"content-type": "application/json"})
         assert asset.content_type == "application/json"
 
+    def test_metadata_raw_when_provided(self):
+        raw = '{"name": "Test"}'
+        asset = Asset(id="a1", metadata={"name": "Test"}, metadata_raw=raw)
+        assert asset.metadata_raw == raw
+
+    def test_metadata_raw_none_by_default(self):
+        asset = Asset(id="a1", metadata={"name": "Test"})
+        assert asset.metadata_raw is None
+
     def test_is_operation_true(self):
         asset = Asset(id="a1", metadata={"operation": {"type": "tool"}})
         assert asset.is_operation

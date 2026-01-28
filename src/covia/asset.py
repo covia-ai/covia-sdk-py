@@ -37,10 +37,12 @@ class Asset:
         id: str,
         metadata: dict[str, Any],
         venue: Venue | None = None,
+        metadata_raw: str | None = None,
     ) -> None:
         self._id = id
         self._metadata = metadata
         self._venue = venue
+        self._metadata_raw = metadata_raw
 
     # ------------------------------------------------------------------
     # Properties
@@ -55,6 +57,17 @@ class Asset:
     def metadata(self) -> dict[str, Any]:
         """The full metadata dictionary."""
         return self._metadata
+
+    @property
+    def metadata_raw(self) -> str | None:
+        """The raw UTF-8 JSON string of the metadata as returned by the server.
+
+        This preserves the exact byte representation needed for computing
+        or validating asset IDs (SHA-256 hash of canonical metadata bytes).
+        Returns ``None`` if the asset was constructed without raw metadata
+        (e.g. created locally rather than fetched from a venue).
+        """
+        return self._metadata_raw
 
     @property
     def name(self) -> str | None:
