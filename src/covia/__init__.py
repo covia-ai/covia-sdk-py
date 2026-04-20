@@ -8,6 +8,7 @@ Connect to a Covia venue and invoke operations::
         result = venue.run("my-operation", {"prompt": "hello"})
 """
 
+from covia.agents import AgentManager
 from covia.asset import Asset
 from covia.auth import Auth, BasicAuth, BearerAuth, Ed25519Auth, NoAuth
 from covia.exceptions import (
@@ -24,18 +25,40 @@ from covia.grid import Grid
 from covia.job import Job
 from covia.models import (
     AgentCard,
+    AgentChatResult,
+    AgentCreateResult,
+    AgentDeleteResult,
+    AgentListEntry,
+    AgentListResult,
+    AgentMessageResult,
+    AgentQueryResult,
+    AgentRequestResult,
+    AgentSuspendResult,
+    AgentTriggerResult,
     AssetList,
     DIDDocument,
     InvokeRequest,
     JobData,
     MCPDiscovery,
     OperationInfo,
+    SecretExtractResult,
+    SecretSetResult,
+    UCANAttenuation,
     VenueStatus,
+    WorkspaceAppendResult,
+    WorkspaceDeleteResult,
+    WorkspaceListResult,
+    WorkspaceReadResult,
+    WorkspaceSliceResult,
+    WorkspaceWriteResult,
 )
+from covia.secrets import SecretManager
 from covia.status import JobStatus
+from covia.ucan import UCANManager
 from covia.venue import Venue
+from covia.workspace import WorkspaceManager
 
-__version__ = "0.1.0"
+__version__ = "0.2.0a1"
 
 # Library-level NullHandler — prevents "No handlers could be found" warnings.
 # Users must configure logging themselves to see SDK log output.
@@ -51,6 +74,11 @@ __all__ = [
     "Job",
     "Asset",
     "JobStatus",
+    # Managers
+    "AgentManager",
+    "SecretManager",
+    "UCANManager",
+    "WorkspaceManager",
     # Auth
     "Auth",
     "NoAuth",
@@ -66,6 +94,28 @@ __all__ = [
     "AgentCard",
     "InvokeRequest",
     "OperationInfo",
+    # Agent models
+    "AgentCreateResult",
+    "AgentRequestResult",
+    "AgentMessageResult",
+    "AgentChatResult",
+    "AgentTriggerResult",
+    "AgentQueryResult",
+    "AgentListEntry",
+    "AgentListResult",
+    "AgentDeleteResult",
+    "AgentSuspendResult",
+    # Workspace models
+    "WorkspaceReadResult",
+    "WorkspaceWriteResult",
+    "WorkspaceDeleteResult",
+    "WorkspaceAppendResult",
+    "WorkspaceListResult",
+    "WorkspaceSliceResult",
+    # UCAN + Secret models
+    "UCANAttenuation",
+    "SecretSetResult",
+    "SecretExtractResult",
     # Exceptions
     "CoviaError",
     "GridError",

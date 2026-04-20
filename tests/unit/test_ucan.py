@@ -1,0 +1,48 @@
+"""Tests for UCANManager."""
+
+from __future__ import annotations
+
+import json
+
+from covia import UCANAttenuation
+from tests.conftest import VENUE_URL
+
+API_BASE = f"{VENUE_URL}/api/v1/"
+
+
+def _complete(output: object) -> dict[str, object]:
+    return {"id": "job-ucan", "status": "COMPLETE", "output": output}
+
+
+def test_issue_with_attenuation_models(httpx_mock, venue):
+    httpx_mock.add_response(
+        url=f"{API_BASE}invoke",
+        json=_complete({"token": "eyJ..."}),
+        status_code=201,
+    )
+    atts = [UCANAttenuation(with_="secret:*", can="secret/extract")]
+    result = venue.ucan.issue("did:web:alice.example", atts, expiry=2_000_000_000)
+    assert result == {"token": "eyJ..."}
+
+    body = json.loads(httpx_mock.get_requests()[-1].content)
+    assert body["operation"] == "v/ops/ucan/issue"
+    # attenuations serialise back to "with" (the wire alias) not "with_"
+    assert body["input"]["att"] == [{"with": "secret:*", "can": "secret/extract"}]
+    assert body["input"]["aud"] == "did:web:alice.example"
+    assert body["input"]["exp"] == 2_000_000_000
+
+
+def test_issue_with_raw_dicts(httpx_mock, venue):
+    httpx_mock.add_response(
+        url=f"{API_BASE}invoke",
+        json=_complete({"token": "eyJ..."}),
+        status_code=201,
+    )
+    atts: list[dict[str, object]] = [{"with": "secret:*", "can": "secret/extract"}]
+    venue.ucan.issue("did:web:alice.example", atts, expiry=2_000_000_000)
+    body = json.loads(httpx_mock.get_requests()[-1].content)
+    assert body["input"]["att"] == [{"with": "secret:*", "can": "secret/extract"}]
+
+
+def test_lazy_manager_is_cached(venue):
+    assert venue.ucan is venue.ucan

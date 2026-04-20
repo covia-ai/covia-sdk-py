@@ -9,6 +9,7 @@ from typing import Any
 from covia._async_client import AsyncCoviaHTTPClient
 from covia._sse import SSEEvent
 from covia._transport import TransportConfig
+from covia.agents import AsyncAgentManager
 from covia.asset import Asset
 from covia.async_api.job import AsyncJob
 from covia.models import (
@@ -20,6 +21,9 @@ from covia.models import (
     OperationInfo,
     VenueStatus,
 )
+from covia.secrets import AsyncSecretManager
+from covia.ucan import AsyncUCANManager
+from covia.workspace import AsyncWorkspaceManager
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +45,38 @@ class AsyncVenue:
         self._config = config
         self._did: str | None = None
         self._did_resolved: bool = False
+        self._agents: AsyncAgentManager | None = None
+        self._secrets: AsyncSecretManager | None = None
+        self._workspace: AsyncWorkspaceManager | None = None
+        self._ucan: AsyncUCANManager | None = None
+
+    @property
+    def agents(self) -> AsyncAgentManager:
+        """Typed accessor for ``v/ops/agent/*`` operations."""
+        if self._agents is None:
+            self._agents = AsyncAgentManager(self)
+        return self._agents
+
+    @property
+    def secrets(self) -> AsyncSecretManager:
+        """Typed accessor for venue secret storage."""
+        if self._secrets is None:
+            self._secrets = AsyncSecretManager(self)
+        return self._secrets
+
+    @property
+    def workspace(self) -> AsyncWorkspaceManager:
+        """Typed accessor for ``v/ops/covia/*`` workspace operations."""
+        if self._workspace is None:
+            self._workspace = AsyncWorkspaceManager(self)
+        return self._workspace
+
+    @property
+    def ucan(self) -> AsyncUCANManager:
+        """Typed accessor for ``v/ops/ucan/*`` operations."""
+        if self._ucan is None:
+            self._ucan = AsyncUCANManager(self)
+        return self._ucan
 
     async def aclose(self) -> None:
         """Close the underlying HTTP connection pool."""
@@ -200,6 +236,22 @@ class AsyncVenue:
     async def stream_job_events(self, job_id: str) -> AsyncIterator[SSEEvent]:
         """Stream SSE events for a job."""
         return self._client.stream_job_events(job_id)
+
+    # ------------------------------------------------------------------
+    # Secrets (raw REST — see ``venue.secrets`` for the typed manager)
+    # ------------------------------------------------------------------
+
+    async def list_secrets(self) -> list[str]:
+        """List secret names stored at this venue."""
+        return await self._client.list_secrets()
+
+    async def put_secret(self, name: str, value: str) -> None:
+        """Store (or replace) a secret value."""
+        await self._client.put_secret(name, value)
+
+    async def delete_secret(self, name: str) -> None:
+        """Delete a stored secret."""
+        await self._client.delete_secret(name)
 
     # ------------------------------------------------------------------
     # Discovery

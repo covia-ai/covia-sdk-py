@@ -162,6 +162,25 @@ class AsyncCoviaHTTPClient:
         return OperationInfo.model_validate(resp.json())
 
     # ------------------------------------------------------------------
+    # Secrets
+    # ------------------------------------------------------------------
+
+    async def list_secrets(self) -> list[str]:
+        """``GET /api/v1/secrets`` — returns the list of secret names."""
+        resp = await self._request("GET", "secrets")
+        body: dict[str, Any] = resp.json()
+        items: list[str] = body.get("items", [])
+        return items
+
+    async def put_secret(self, name: str, value: str) -> None:
+        """``PUT /api/v1/secrets/{name}`` — store a secret value."""
+        await self._request("PUT", f"secrets/{name}", json={"value": value})
+
+    async def delete_secret(self, name: str) -> None:
+        """``DELETE /api/v1/secrets/{name}`` — delete a secret."""
+        await self._request("DELETE", f"secrets/{name}")
+
+    # ------------------------------------------------------------------
     # Discovery
     # ------------------------------------------------------------------
 

@@ -5,7 +5,7 @@
 **covia-sdk-py** is the Python SDK for the [Covia](https://covia.ai) federated AI orchestration grid. It provides sync and async clients for connecting to Covia venues, invoking operations, managing assets, and tracking job lifecycle — all with full type safety.
 
 - **Package name:** `covia`
-- **Version:** 0.1.0 (Alpha)
+- **Version:** 0.2.0a1 (Alpha)
 - **License:** Apache-2.0
 - **Python:** 3.11+
 - **Build system:** Hatchling (PEP 517)
@@ -47,12 +47,17 @@ mypy src/covia/
 src/covia/
   __init__.py          # Public API exports and __version__
   grid.py              # Grid.connect() — entry point for venue connections
-  venue.py             # Venue — primary class for venue interaction
+  venue.py             # Venue — primary class; holds lazy managers
   job.py               # Job — job lifecycle, polling, SSE streaming
   asset.py             # Asset — data objects and invocable operations
   status.py            # JobStatus enum (PENDING, STARTED, COMPLETE, etc.)
   models.py            # Pydantic v2 data models for API types
   exceptions.py        # Exception hierarchy (CoviaError base)
+  auth.py              # Auth interface + built-in providers
+  agents.py            # AgentManager / AsyncAgentManager — v/ops/agent/*
+  secrets.py           # SecretManager / AsyncSecretManager
+  workspace.py         # WorkspaceManager / AsyncWorkspaceManager — v/ops/covia/*
+  ucan.py              # UCANManager / AsyncUCANManager — v/ops/ucan/*
   _client.py           # Synchronous HTTP client (internal)
   _async_client.py     # Asynchronous HTTP client (internal)
   _transport.py        # Transport config, URL/DID resolution (internal)
@@ -69,11 +74,22 @@ src/covia/
 
 **Core classes:** `Grid`, `Venue`, `Job`, `Asset`, `JobStatus`
 
-**Models:** `VenueStatus`, `AssetList`, `JobData`, `DIDDocument`, `MCPDiscovery`, `AgentCard`, `InvokeRequest`
+**Managers (lazy properties on Venue):** `venue.agents`, `venue.secrets`, `venue.workspace`, `venue.ucan`
+
+**Models:** `VenueStatus`, `AssetList`, `JobData`, `DIDDocument`, `MCPDiscovery`, `AgentCard`, `InvokeRequest`, `OperationInfo`, plus agent/workspace/ucan/secret result models (see `covia/__init__.py`).
 
 **Exceptions:** `CoviaError`, `GridError`, `CoviaConnectionError`, `CoviaTimeoutError`, `JobFailedError`, `AssetNotFoundError`, `JobNotFoundError`
 
-**Async variants:** `covia.async_api.AsyncGrid`, `AsyncVenue`, `AsyncJob`
+**Async variants:** `covia.async_api.AsyncGrid`, `AsyncVenue`, `AsyncJob`, plus `AsyncAgentManager`, `AsyncSecretManager`, `AsyncWorkspaceManager`, `AsyncUCANManager`
+
+### Manager wiring
+
+Managers are lazy properties on `Venue` / `AsyncVenue` — first access constructs, subsequent accesses return the cached instance. Each manager delegates to the venue via:
+
+- `venue.run(op, input)` — for ops that go through `/api/v1/invoke` (agent, workspace, ucan, secret set/extract)
+- `venue.list_secrets()` / `put_secret()` / `delete_secret()` — for the REST secret endpoints
+
+Payloads sent on the wire are camelCase to match the Covia REST API; Python args are snake_case and managers handle the translation.
 
 ---
 
@@ -100,7 +116,7 @@ Tests live in `tests/` with shared fixtures in `conftest.py`.
 
 | Directory | Count | Description |
 |-----------|-------|-------------|
-| `tests/unit/` | 92 | Mocked HTTP via pytest-httpx, covers all classes |
+| `tests/unit/` | 120+ | Mocked HTTP via pytest-httpx, covers all classes and managers |
 | `tests/integration/` | — | Requires live venue, marked `@pytest.mark.integration` |
 
 Unit tests are the primary quality gate. Always run them after changes:

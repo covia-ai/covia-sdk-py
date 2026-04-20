@@ -12,6 +12,7 @@ from typing import Any
 from covia._client import CoviaHTTPClient
 from covia._sse import SSEEvent
 from covia._transport import TransportConfig
+from covia.agents import AgentManager
 from covia.asset import Asset
 from covia.job import Job
 from covia.models import (
@@ -23,6 +24,9 @@ from covia.models import (
     OperationInfo,
     VenueStatus,
 )
+from covia.secrets import SecretManager
+from covia.ucan import UCANManager
+from covia.workspace import WorkspaceManager
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +51,38 @@ class Venue:
         self._config = config
         self._did: str | None = None
         self._did_resolved: bool = False
+        self._agents: AgentManager | None = None
+        self._secrets: SecretManager | None = None
+        self._workspace: WorkspaceManager | None = None
+        self._ucan: UCANManager | None = None
+
+    @property
+    def agents(self) -> AgentManager:
+        """Typed accessor for ``v/ops/agent/*`` operations."""
+        if self._agents is None:
+            self._agents = AgentManager(self)
+        return self._agents
+
+    @property
+    def secrets(self) -> SecretManager:
+        """Typed accessor for venue secret storage."""
+        if self._secrets is None:
+            self._secrets = SecretManager(self)
+        return self._secrets
+
+    @property
+    def workspace(self) -> WorkspaceManager:
+        """Typed accessor for ``v/ops/covia/*`` workspace operations."""
+        if self._workspace is None:
+            self._workspace = WorkspaceManager(self)
+        return self._workspace
+
+    @property
+    def ucan(self) -> UCANManager:
+        """Typed accessor for ``v/ops/ucan/*`` operations."""
+        if self._ucan is None:
+            self._ucan = UCANManager(self)
+        return self._ucan
 
     def close(self) -> None:
         """Close the underlying HTTP connection pool."""
@@ -264,6 +300,22 @@ class Venue:
             :class:`~covia._sse.SSEEvent` instances.
         """
         return self._client.stream_job_events(job_id)
+
+    # ------------------------------------------------------------------
+    # Secrets (raw REST — see ``venue.secrets`` for the typed manager)
+    # ------------------------------------------------------------------
+
+    def list_secrets(self) -> list[str]:
+        """List secret names stored at this venue."""
+        return self._client.list_secrets()
+
+    def put_secret(self, name: str, value: str) -> None:
+        """Store (or replace) a secret value."""
+        self._client.put_secret(name, value)
+
+    def delete_secret(self, name: str) -> None:
+        """Delete a stored secret."""
+        self._client.delete_secret(name)
 
     # ------------------------------------------------------------------
     # Discovery
