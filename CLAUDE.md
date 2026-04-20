@@ -7,7 +7,7 @@
 - **Package name:** `covia`
 - **Version:** 0.1.0 (Alpha)
 - **License:** Apache-2.0
-- **Python:** 3.10+
+- **Python:** 3.11+
 - **Build system:** Hatchling (PEP 517)
 - **Repository:** https://github.com/covia-ai/covia-sdk-py
 
@@ -116,7 +116,7 @@ Integration tests are excluded by default. Run explicitly with `-m integration` 
 ## Code Conventions
 
 ### Style
-- **Formatter/Linter:** Ruff (line length 120, target Python 3.10)
+- **Formatter/Linter:** Ruff (line length 120, target Python 3.11)
 - **Lint rules:** E, F, I (isort), UP (pyupgrade), B (bugbear), SIM (simplify)
 - **Type checking:** mypy strict mode with pydantic plugin
 - **PEP 561:** Fully typed (`py.typed` marker included)
@@ -142,7 +142,7 @@ Integration tests are excluded by default. Run explicitly with `-m integration` 
 
 GitHub Actions (`.github/workflows/ci.yml`) runs on push/PR to `master`:
 
-1. **Matrix:** Python 3.10, 3.11, 3.12, 3.13 on Ubuntu
+1. **Matrix:** Python 3.11, 3.12, 3.13 on Ubuntu
 2. **Lint:** `ruff check`
 3. **Format:** `ruff format --check`
 4. **Type check:** `mypy src/covia/`
