@@ -42,15 +42,11 @@ class WorkspaceManager:
 
     def write(self, path: str, value: Any) -> WorkspaceWriteResult:
         """Write (overwrite) a value at the given path."""
-        return WorkspaceWriteResult.model_validate(
-            self._venue.run("v/ops/covia/write", {"path": path, "value": value})
-        )
+        return WorkspaceWriteResult.model_validate(self._venue.run("v/ops/covia/write", {"path": path, "value": value}))
 
     def delete(self, path: str) -> WorkspaceDeleteResult:
         """Delete the entry at the given path."""
-        return WorkspaceDeleteResult.model_validate(
-            self._venue.run("v/ops/covia/delete", {"path": path})
-        )
+        return WorkspaceDeleteResult.model_validate(self._venue.run("v/ops/covia/delete", {"path": path}))
 
     def append(self, path: str, value: Any) -> WorkspaceAppendResult:
         """Append a value to a collection at the given path."""
@@ -97,9 +93,7 @@ class AsyncWorkspaceManager:
         )
 
     async def delete(self, path: str) -> WorkspaceDeleteResult:
-        return WorkspaceDeleteResult.model_validate(
-            await self._venue.run("v/ops/covia/delete", {"path": path})
-        )
+        return WorkspaceDeleteResult.model_validate(await self._venue.run("v/ops/covia/delete", {"path": path}))
 
     async def append(self, path: str, value: Any) -> WorkspaceAppendResult:
         return WorkspaceAppendResult.model_validate(

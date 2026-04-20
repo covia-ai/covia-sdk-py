@@ -50,9 +50,7 @@ class SecretManager:
 
     def set(self, name: str, value: str) -> SecretSetResult:
         """Store a secret via ``v/ops/secret/set``."""
-        return SecretSetResult.model_validate(
-            self._venue.run("v/ops/secret/set", {"name": name, "value": value})
-        )
+        return SecretSetResult.model_validate(self._venue.run("v/ops/secret/set", {"name": name, "value": value}))
 
     def extract(self, name: str) -> SecretExtractResult:
         """Extract a secret value via ``v/ops/secret/extract``.
@@ -60,9 +58,7 @@ class SecretManager:
         Requires a UCAN capability grant; the venue may reject this call
         without an appropriate capability proof.
         """
-        return SecretExtractResult.model_validate(
-            self._venue.run("v/ops/secret/extract", {"name": name})
-        )
+        return SecretExtractResult.model_validate(self._venue.run("v/ops/secret/extract", {"name": name}))
 
 
 class AsyncSecretManager:
@@ -81,11 +77,7 @@ class AsyncSecretManager:
         await self._venue.delete_secret(name)
 
     async def set(self, name: str, value: str) -> SecretSetResult:
-        return SecretSetResult.model_validate(
-            await self._venue.run("v/ops/secret/set", {"name": name, "value": value})
-        )
+        return SecretSetResult.model_validate(await self._venue.run("v/ops/secret/set", {"name": name, "value": value}))
 
     async def extract(self, name: str) -> SecretExtractResult:
-        return SecretExtractResult.model_validate(
-            await self._venue.run("v/ops/secret/extract", {"name": name})
-        )
+        return SecretExtractResult.model_validate(await self._venue.run("v/ops/secret/extract", {"name": name}))

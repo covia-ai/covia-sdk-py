@@ -52,12 +52,14 @@ class AgentManager:
         overwrite: bool | None = None,
     ) -> AgentCreateResult:
         """Create an agent with the given id and optional config/state."""
-        payload = _drop_none({
-            "agentId": agent_id,
-            "config": config,
-            "state": state,
-            "overwrite": overwrite,
-        })
+        payload = _drop_none(
+            {
+                "agentId": agent_id,
+                "config": config,
+                "state": state,
+                "overwrite": overwrite,
+            }
+        )
         return AgentCreateResult.model_validate(self._venue.run("v/ops/agent/create", payload))
 
     def request(
@@ -109,15 +111,11 @@ class AgentManager:
 
     def trigger(self, agent_id: str) -> AgentTriggerResult:
         """Fire any pending scheduled work for an agent."""
-        return AgentTriggerResult.model_validate(
-            self._venue.run("v/ops/agent/trigger", {"agentId": agent_id})
-        )
+        return AgentTriggerResult.model_validate(self._venue.run("v/ops/agent/trigger", {"agentId": agent_id}))
 
     def query(self, agent_id: str) -> AgentQueryResult:
         """Get current status, state, config, and task list for an agent."""
-        return AgentQueryResult.model_validate(
-            self._venue.run("v/ops/agent/info", {"agentId": agent_id})
-        )
+        return AgentQueryResult.model_validate(self._venue.run("v/ops/agent/info", {"agentId": agent_id}))
 
     def list(self, *, include_terminated: bool | None = None) -> AgentListResult:
         """List agents on this venue."""
@@ -131,9 +129,7 @@ class AgentManager:
 
     def suspend(self, agent_id: str) -> AgentSuspendResult:
         """Suspend an agent."""
-        return AgentSuspendResult.model_validate(
-            self._venue.run("v/ops/agent/suspend", {"agentId": agent_id})
-        )
+        return AgentSuspendResult.model_validate(self._venue.run("v/ops/agent/suspend", {"agentId": agent_id}))
 
     def resume(self, agent_id: str, *, auto_wake: bool | None = None) -> AgentSuspendResult:
         """Resume a suspended agent."""
@@ -173,12 +169,14 @@ class AsyncAgentManager:
         state: dict[str, Any] | None = None,
         overwrite: bool | None = None,
     ) -> AgentCreateResult:
-        payload = _drop_none({
-            "agentId": agent_id,
-            "config": config,
-            "state": state,
-            "overwrite": overwrite,
-        })
+        payload = _drop_none(
+            {
+                "agentId": agent_id,
+                "config": config,
+                "state": state,
+                "overwrite": overwrite,
+            }
+        )
         return AgentCreateResult.model_validate(await self._venue.run("v/ops/agent/create", payload))
 
     async def request(
@@ -206,14 +204,10 @@ class AsyncAgentManager:
         return AgentChatResult.model_validate(await self._venue.run("v/ops/agent/chat", payload))
 
     async def trigger(self, agent_id: str) -> AgentTriggerResult:
-        return AgentTriggerResult.model_validate(
-            await self._venue.run("v/ops/agent/trigger", {"agentId": agent_id})
-        )
+        return AgentTriggerResult.model_validate(await self._venue.run("v/ops/agent/trigger", {"agentId": agent_id}))
 
     async def query(self, agent_id: str) -> AgentQueryResult:
-        return AgentQueryResult.model_validate(
-            await self._venue.run("v/ops/agent/info", {"agentId": agent_id})
-        )
+        return AgentQueryResult.model_validate(await self._venue.run("v/ops/agent/info", {"agentId": agent_id}))
 
     async def list(self, *, include_terminated: bool | None = None) -> AgentListResult:
         payload = _drop_none({"includeTerminated": include_terminated})
@@ -224,9 +218,7 @@ class AsyncAgentManager:
         return AgentDeleteResult.model_validate(await self._venue.run("v/ops/agent/delete", payload))
 
     async def suspend(self, agent_id: str) -> AgentSuspendResult:
-        return AgentSuspendResult.model_validate(
-            await self._venue.run("v/ops/agent/suspend", {"agentId": agent_id})
-        )
+        return AgentSuspendResult.model_validate(await self._venue.run("v/ops/agent/suspend", {"agentId": agent_id}))
 
     async def resume(self, agent_id: str, *, auto_wake: bool | None = None) -> AgentSuspendResult:
         payload = _drop_none({"agentId": agent_id, "autoWake": auto_wake})
