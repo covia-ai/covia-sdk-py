@@ -108,9 +108,7 @@ class AsyncCoviaHTTPClient:
     # Jobs / Invoke
     # ------------------------------------------------------------------
 
-    async def invoke(
-        self, operation: str, input: Any = None, *, ucans: list[str] | None = None
-    ) -> JobData:
+    async def invoke(self, operation: str, input: Any = None, *, ucans: list[str] | None = None) -> JobData:
         """``POST /api/v1/invoke``.
 
         ``ucans`` is an optional list of UCAN proof tokens authorising

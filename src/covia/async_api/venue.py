@@ -182,9 +182,7 @@ class AsyncVenue:
     # Invoke / Run
     # ------------------------------------------------------------------
 
-    async def invoke(
-        self, operation: str, input: Any = None, *, ucans: list[str] | None = None
-    ) -> AsyncJob:
+    async def invoke(self, operation: str, input: Any = None, *, ucans: list[str] | None = None) -> AsyncJob:
         """Invoke an operation, returning an AsyncJob for tracking.
 
         Args:
