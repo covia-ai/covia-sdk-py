@@ -145,9 +145,16 @@ def _base58btc_encode(data: bytes) -> str:
     return "1" * n_pad + "".join(reversed(chars))
 
 
+def _public_key_to_multibase(public_key_bytes: bytes) -> str:
+    """Encode a 32-byte Ed25519 public key as a base58btc multibase
+    string (``z<base58btc(0xED01 || pubkey)>``).
+    """
+    return f"z{_base58btc_encode(_ED25519_MULTICODEC + public_key_bytes)}"
+
+
 def _public_key_to_did_key(public_key_bytes: bytes) -> str:
     """Encode a 32-byte Ed25519 public key as a ``did:key`` DID."""
-    return f"did:key:z{_base58btc_encode(_ED25519_MULTICODEC + public_key_bytes)}"
+    return f"did:key:{_public_key_to_multibase(public_key_bytes)}"
 
 
 def _check_signing_deps() -> None:
@@ -196,7 +203,8 @@ class Ed25519Auth(Auth):
         self._private_key = private_key
         raw = private_key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
         self._public_key_bytes = raw
-        self._did = _public_key_to_did_key(raw)
+        self._multibase = _public_key_to_multibase(raw)
+        self._did = f"did:key:{self._multibase}"
         self._audience = audience
         self._token_lifetime = token_lifetime
 
@@ -277,11 +285,14 @@ class Ed25519Auth(Auth):
         }
         if self._audience is not None:
             payload["aud"] = self._audience
+        # The venue's auth middleware uses Multikey.decodePublicKey on the
+        # `kid` header — that decoder requires the bare multibase string
+        # (z6Mk...) and rejects the full did:key form.
         token: str = jwt.encode(
             payload,
             self._private_key,
             algorithm="EdDSA",
-            headers={"kid": self._did},
+            headers={"kid": self._multibase},
         )
         headers["Authorization"] = f"Bearer {token}"
 

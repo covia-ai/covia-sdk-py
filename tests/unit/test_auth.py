@@ -253,7 +253,10 @@ class TestEd25519AuthApply:
         token = headers["Authorization"].removeprefix("Bearer ")
         header = jwt.get_unverified_header(token)
         assert header["alg"] == "EdDSA"
-        assert header["kid"] == auth.did
+        # kid is the bare multibase form (z6Mk...) not the full did:key —
+        # the venue's Multikey.decodePublicKey() requires that shape.
+        assert header["kid"].startswith("z")
+        assert auth.did == f"did:key:{header['kid']}"
 
     def test_jwt_verifiable_with_public_key(self):
         seed = b"\x02" * 32
