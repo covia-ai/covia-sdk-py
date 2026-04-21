@@ -36,8 +36,41 @@ def _fresh_auth() -> Ed25519Auth:
     return Ed25519Auth.generate(audience=VENUE_URL)
 
 
+@pytest.fixture(scope="module")
+def _venue_supports_v_ops() -> bool:
+    """Detect whether the venue exposes the ``/v/ops/`` operation catalog.
+
+    The SDK uses ``v/ops/<adapter>/<op>`` refs (matches the current
+    Java/TS SDKs). Older venues only support the legacy
+    ``<adapter>:<op>`` dispatch form and reject the new refs with
+    ``Adapter not available: v/ops/...``. When that happens we skip the
+    workspace/UCAN tests rather than failing the build.
+    """
+    auth = _fresh_auth()
+    v = Grid.connect(VENUE_URL, auth=auth)
+    try:
+        try:
+            v.run("v/ops/covia/read", {"path": "v/info/version"})
+        except Exception as e:
+            if "Adapter not available: v/ops/" in str(e):
+                return False
+            # Any other failure (auth rejection, transport, …) we treat
+            # as "venue too old / unsupported" and skip — caller surfaces
+            # the message.
+            pytest.skip(f"venue probe failed: {e}")
+        return True
+    finally:
+        v.close()
+
+
 @pytest.fixture
-def alice():
+def alice(_venue_supports_v_ops):
+    if not _venue_supports_v_ops:
+        pytest.skip(
+            "venue does not expose the v/ops/ catalog (legacy API). "
+            "Deploy a covia venue with OPERATIONS.md materialiseVOps "
+            "to run these tests."
+        )
     auth = _fresh_auth()
     v = Grid.connect(VENUE_URL, auth=auth)
     yield v, auth
@@ -45,7 +78,9 @@ def alice():
 
 
 @pytest.fixture
-def bob():
+def bob(_venue_supports_v_ops):
+    if not _venue_supports_v_ops:
+        pytest.skip("venue does not expose the v/ops/ catalog (legacy API)")
     auth = _fresh_auth()
     v = Grid.connect(VENUE_URL, auth=auth)
     yield v, auth
