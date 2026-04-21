@@ -59,10 +59,7 @@ def _unique(prefix: str) -> str:
 def test_self_workspace_roundtrip(alice):
     venue, _auth = alice
     path = f"/w/tests/{_unique('note')}"
-    try:
-        venue.workspace.write(path, {"hello": "world"})
-    except Exception as e:
-        pytest.skip(f"venue rejected authenticated write (auth not enabled?): {e}")
+    venue.workspace.write(path, {"hello": "world"})
 
     read = venue.workspace.read(path)
     assert read.exists is True
@@ -83,10 +80,7 @@ def test_self_read_via_did_prefix(alice):
     bare_path = f"/w/tests/{key}"
     full_path = f"{auth.did}/w/tests/{key}"
 
-    try:
-        venue.workspace.write(bare_path, {"marker": key})
-    except Exception as e:
-        pytest.skip(f"venue rejected authenticated write: {e}")
+    venue.workspace.write(bare_path, {"marker": key})
 
     try:
         bare = venue.workspace.read(bare_path)
@@ -111,10 +105,7 @@ def test_cross_user_read_rejected_without_ucan(alice, bob):
     key = _unique("private")
     alice_path = f"{alice_auth.did}/w/tests/{key}"
 
-    try:
-        alice_venue.workspace.write(f"/w/tests/{key}", {"secret": "hush"})
-    except Exception as e:
-        pytest.skip(f"alice write failed: {e}")
+    alice_venue.workspace.write(f"/w/tests/{key}", {"secret": "hush"})
 
     try:
         try:
@@ -141,10 +132,7 @@ def test_cross_user_read_with_ucan_delegation(alice, bob):
     local_path = f"/w/tests/{key}"
     alice_path = f"{alice_auth.did}/w/tests/{key}"
 
-    try:
-        alice_venue.workspace.write(local_path, {"shared-with-bob": True})
-    except Exception as e:
-        pytest.skip(f"alice write failed: {e}")
+    alice_venue.workspace.write(local_path, {"shared-with-bob": True})
 
     try:
         # Alice delegates read capability on this specific path to Bob.
