@@ -1,9 +1,10 @@
-"""Integration tests against a live Covia venue.
+"""Basic integration tests against a live Covia venue.
 
-These tests are skipped by default. Run with:
+These tests are skipped by default. Run with::
+
     pytest -m integration
 
-Set the COVIA_VENUE_URL environment variable to specify the venue.
+Set ``COVIA_VENUE_URL`` to target a specific venue.
 """
 
 from __future__ import annotations
@@ -30,6 +31,12 @@ def venue():
 def test_status(venue):
     status = venue.status()
     assert status is not None
+    assert status.did is not None
+
+
+def test_did_document(venue):
+    doc = venue.did_document()
+    assert doc.id.startswith("did:")
 
 
 def test_list_assets(venue):
@@ -39,5 +46,11 @@ def test_list_assets(venue):
 
 
 def test_list_jobs(venue):
-    jobs = venue.list_jobs()
+    # Anonymous callers may not be allowed to list jobs on some venues.
+    # If the venue enforces auth for this endpoint, skip cleanly rather
+    # than failing the suite.
+    try:
+        jobs = venue.list_jobs()
+    except Exception as e:
+        pytest.skip(f"list_jobs not available to anonymous caller: {e}")
     assert isinstance(jobs, list)

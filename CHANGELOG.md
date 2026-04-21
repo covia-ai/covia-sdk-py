@@ -4,6 +4,12 @@
 
 ### Added
 
+- **UCAN proofs on invoke/run** — `venue.invoke(...)` and `venue.run(...)`
+  now accept an optional `ucans=[token, ...]` keyword argument. The SDK
+  forwards the tokens as the top-level `ucans` field in the
+  ``/api/v1/invoke`` request envelope, allowing the venue to authorise
+  capability-gated operations such as cross-DID lattice reads and
+  `secret:extract`. Mirrored on `AsyncVenue`.
 - **AgentManager** (`venue.agents`) — typed wrapper over the `v/ops/agent/*`
   operations: `create`, `request`, `message`, `chat`, `trigger`, `query`,
   `list`, `delete`, `suspend`, `resume`, `update`, `cancel_task`.

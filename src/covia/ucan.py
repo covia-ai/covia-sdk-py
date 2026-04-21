@@ -1,4 +1,25 @@
-"""UCANManager — typed wrapper around ``v/ops/ucan/*`` operations."""
+"""UCANManager — typed wrapper around ``v/ops/ucan/*`` operations.
+
+UCAN (User-Controlled Authorisation Network) tokens are how a caller
+delegates capabilities on lattice paths to another DID. Once issued, the
+audience presents the token alongside invocations via
+``venue.run(op, input, ucans=[token])`` so the venue can verify the
+capability before serving the request.
+
+Attenuations are path-scoped:
+
+- ``with`` **must** be a fully-qualified DID URL in the caller's own
+  namespace, e.g. ``did:key:z6Mk...alice/w/projects/acme`` or
+  ``did:web:venue.covia.ai/o/my-transform``. The server rejects
+  attenuations that don't start with ``<callerDID>/``.
+- ``can`` is the ability verb. Canonical values: ``crud/read``,
+  ``crud/write``, or ``*``. Ability prefixes cover verbs below them
+  (``crud`` covers ``crud/read`` and ``crud/write``).
+
+Expiry is a Unix timestamp (seconds); the venue rejects proofs after
+that instant. The issue response is ``{"token": "<JWT>"}`` — pass
+``token`` as an element of the ``ucans`` list on subsequent invokes.
+"""
 
 from __future__ import annotations
 

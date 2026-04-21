@@ -108,11 +108,19 @@ class AsyncCoviaHTTPClient:
     # Jobs / Invoke
     # ------------------------------------------------------------------
 
-    async def invoke(self, operation: str, input: Any = None) -> JobData:
-        """``POST /api/v1/invoke``"""
+    async def invoke(
+        self, operation: str, input: Any = None, *, ucans: list[str] | None = None
+    ) -> JobData:
+        """``POST /api/v1/invoke``.
+
+        ``ucans`` is an optional list of UCAN proof tokens authorising
+        capability-gated operations.
+        """
         body: dict[str, Any] = {"operation": operation}
         if input is not None:
             body["input"] = input
+        if ucans:
+            body["ucans"] = list(ucans)
         resp = await self._request("POST", "invoke", json=body)
         return JobData.model_validate(resp.json())
 

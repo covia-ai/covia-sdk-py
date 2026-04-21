@@ -209,7 +209,7 @@ class Venue:
     # Invoke / Run
     # ------------------------------------------------------------------
 
-    def invoke(self, operation: str, input: Any = None) -> Job:
+    def invoke(self, operation: str, input: Any = None, *, ucans: list[str] | None = None) -> Job:
         """Invoke an operation, returning a Job for tracking.
 
         The operation starts asynchronously on the venue. Use
@@ -221,11 +221,15 @@ class Venue:
                 (e.g. ``"test:echo"``), or a DID URL
                 (e.g. ``"did:key:z6Mk.../a/b8fc54e7..."``).
             input: Input parameters for the operation.
+            ucans: Optional UCAN proof tokens authorising
+                capability-gated operations (e.g. cross-DID reads,
+                ``secret:extract``). The venue verifies each proof
+                against the caller's DID and the operation's path.
 
         Returns:
             A :class:`~covia.job.Job` instance for tracking execution.
         """
-        job_data = self._client.invoke(operation, input)
+        job_data = self._client.invoke(operation, input, ucans=ucans)
         return Job(data=job_data, venue=self)
 
     def run(
@@ -234,6 +238,7 @@ class Venue:
         input: Any = None,
         *,
         timeout: float | None = None,
+        ucans: list[str] | None = None,
     ) -> Any:
         """Invoke an operation and block until the result is available.
 
@@ -245,6 +250,7 @@ class Venue:
                 an operation name (e.g. ``"test:echo"``), or a DID URL.
             input: Input parameters for the operation.
             timeout: Maximum seconds to wait for completion.
+            ucans: Optional UCAN proof tokens (see :meth:`invoke`).
 
         Returns:
             The operation output.
@@ -253,7 +259,7 @@ class Venue:
             JobFailedError: If the job finishes with a non-COMPLETE status.
             CoviaTimeoutError: If the timeout is exceeded.
         """
-        job = self.invoke(operation, input)
+        job = self.invoke(operation, input, ucans=ucans)
         job.wait(timeout=timeout)
         return job.output
 

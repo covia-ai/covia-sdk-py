@@ -182,15 +182,19 @@ class AsyncVenue:
     # Invoke / Run
     # ------------------------------------------------------------------
 
-    async def invoke(self, operation: str, input: Any = None) -> AsyncJob:
+    async def invoke(
+        self, operation: str, input: Any = None, *, ucans: list[str] | None = None
+    ) -> AsyncJob:
         """Invoke an operation, returning an AsyncJob for tracking.
 
         Args:
             operation: Operation identifier — accepts a hex asset ID,
                 an operation name (e.g. ``"test:echo"``), or a DID URL.
             input: Input parameters for the operation.
+            ucans: Optional UCAN proof tokens authorising
+                capability-gated operations (e.g. cross-DID reads).
         """
-        job_data = await self._client.invoke(operation, input)
+        job_data = await self._client.invoke(operation, input, ucans=ucans)
         return AsyncJob(data=job_data, venue=self)
 
     async def run(
@@ -199,6 +203,7 @@ class AsyncVenue:
         input: Any = None,
         *,
         timeout: float | None = None,
+        ucans: list[str] | None = None,
     ) -> Any:
         """Invoke an operation and wait for the result.
 
@@ -207,8 +212,9 @@ class AsyncVenue:
                 an operation name (e.g. ``"test:echo"``), or a DID URL.
             input: Input parameters for the operation.
             timeout: Maximum seconds to wait for completion.
+            ucans: Optional UCAN proof tokens (see :meth:`invoke`).
         """
-        job = await self.invoke(operation, input)
+        job = await self.invoke(operation, input, ucans=ucans)
         await job.wait(timeout=timeout)
         return job.output
 

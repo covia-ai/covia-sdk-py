@@ -1,9 +1,18 @@
 """SecretManager — typed wrapper for venue-scoped secret storage.
 
-The manager combines two REST endpoints (``/api/v1/secrets/*``) with two
-capability-scoped operations (``v/ops/secret/set`` and
-``v/ops/secret/extract``). Extraction requires a UCAN capability proof and
-will be rejected without one.
+Secrets live in the ``/s/`` namespace of the caller's lattice. They are
+encrypted at rest and **capability-gated** — reads (``extract``) always
+require a UCAN proof, even for the owner, because operations that
+reference secrets by name (``s/NAME``) resolve them through the same
+capability check.
+
+The manager exposes two surfaces:
+
+- **REST** (``list``, ``put``, ``delete``) — manage the owner's own
+  secrets via ``/api/v1/secrets/*``. Authenticated as the caller.
+- **Operations** (``set``, ``extract``) — the ``v/ops/secret/*`` ops.
+  ``set`` stores under the caller's ``/s/``; ``extract`` resolves a
+  secret by name and requires a UCAN capability grant on the target.
 """
 
 from __future__ import annotations

@@ -22,7 +22,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: pip install -e ".[dev]"
+        run: pip install -e ".[dev,signing]"
 
       - name: Lint
         run: ruff check src/ tests/
@@ -41,3 +41,24 @@ jobs:
         uses: codecov/codecov-action@v4
         with:
           file: coverage.xml
+
+  integration:
+    runs-on: ubuntu-latest
+    # Run integration tests against the public test venue on pushes and
+    # manual dispatch. PRs from forks skip (no trusted network).
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -e ".[dev,signing]"
+
+      - name: Integration tests
+        env:
+          COVIA_VENUE_URL: https://venue-test.covia.ai
+        run: pytest -m integration -v
