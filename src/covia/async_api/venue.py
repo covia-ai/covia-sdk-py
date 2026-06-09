@@ -174,7 +174,7 @@ class AsyncVenue:
         """Get details of a named operation.
 
         Args:
-            name: Operation name (e.g. ``"test:echo"``).
+            name: Operation name (e.g. ``"v/ops/schema/infer"``).
         """
         return await self._client.get_operation(name)
 
@@ -187,7 +187,7 @@ class AsyncVenue:
 
         Args:
             operation: Operation identifier — accepts a hex asset ID,
-                an operation name (e.g. ``"test:echo"``), or a DID URL.
+                an operation name (e.g. ``"v/ops/schema/infer"``), or a DID URL.
             input: Input parameters for the operation.
             ucans: Optional UCAN proof tokens authorising
                 capability-gated operations (e.g. cross-DID reads).
@@ -207,7 +207,7 @@ class AsyncVenue:
 
         Args:
             operation: Operation identifier — accepts a hex asset ID,
-                an operation name (e.g. ``"test:echo"``), or a DID URL.
+                an operation name (e.g. ``"v/ops/schema/infer"``), or a DID URL.
             input: Input parameters for the operation.
             timeout: Maximum seconds to wait for completion.
             ucans: Optional UCAN proof tokens (see :meth:`invoke`).

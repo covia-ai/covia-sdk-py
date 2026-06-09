@@ -19,11 +19,11 @@ async def main() -> None:
         print(f"Connected to {status.name}")
 
         # Run an operation (invoke + wait)
-        result = await venue.run("test:echo", {"message": "hello async"}, timeout=10)
-        print(f"Echo result: {result}")
+        result = await venue.run("v/ops/schema/infer", {"value": {"name": "Ada", "age": 36}}, timeout=10)
+        print(f"Inferred schema: {result}")
 
         # Fire-and-forget with a job handle
-        job = await venue.invoke("test:echo", {"message": "via job handle"})
+        job = await venue.invoke("v/ops/schema/infer", {"value": {"admin": True}})
         output = await job.result(timeout=10)
         print(f"Job result:  {output}")
 

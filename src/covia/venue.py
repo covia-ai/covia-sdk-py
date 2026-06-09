@@ -201,7 +201,7 @@ class Venue:
         """Get details of a named operation.
 
         Args:
-            name: Operation name (e.g. ``"test:echo"``).
+            name: Operation name (e.g. ``"v/ops/schema/infer"``).
         """
         return self._client.get_operation(name)
 
@@ -218,7 +218,7 @@ class Venue:
         Args:
             operation: Operation identifier — accepts a hex asset ID
                 (e.g. ``"b8fc54e7..."``), an operation name
-                (e.g. ``"test:echo"``), or a DID URL
+                (e.g. ``"v/ops/schema/infer"``), or a DID URL
                 (e.g. ``"did:key:z6Mk.../a/b8fc54e7..."``).
             input: Input parameters for the operation.
             ucans: Optional UCAN proof tokens authorising
@@ -247,7 +247,7 @@ class Venue:
 
         Args:
             operation: Operation identifier — accepts a hex asset ID,
-                an operation name (e.g. ``"test:echo"``), or a DID URL.
+                an operation name (e.g. ``"v/ops/schema/infer"``), or a DID URL.
             input: Input parameters for the operation.
             timeout: Maximum seconds to wait for completion.
             ucans: Optional UCAN proof tokens (see :meth:`invoke`).

@@ -21,7 +21,7 @@ VENUE_URL = os.environ.get("COVIA_VENUE_URL", "https://venue-test.covia.ai")
 
 try:
     with Grid.connect(VENUE_URL) as venue:
-        result = venue.run("test:error", {"message": "something went wrong"}, timeout=10)
+        result = venue.run("v/test/ops/error", {"message": "something went wrong"}, timeout=10)
         print("Result:", result)
 
 except JobFailedError as e:
