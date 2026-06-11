@@ -15,7 +15,7 @@ import pytest
 
 from covia import Grid
 
-VENUE_URL = os.environ.get("COVIA_VENUE_URL", "https://venue-test.covia.ai")
+VENUE_URL = os.environ.get("COVIA_VENUE_URL", "https://venue-3.covia.ai")
 
 
 pytestmark = pytest.mark.integration

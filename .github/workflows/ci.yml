@@ -60,5 +60,5 @@ jobs:
 
       - name: Integration tests
         env:
-          COVIA_VENUE_URL: https://venue-test.covia.ai
+          COVIA_VENUE_URL: https://venue-3.covia.ai
         run: pytest -m integration -v -rs

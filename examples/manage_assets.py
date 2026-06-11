@@ -10,7 +10,7 @@ import os
 
 from covia import Asset, Grid
 
-VENUE_URL = os.environ.get("COVIA_VENUE_URL", "https://venue-test.covia.ai")
+VENUE_URL = os.environ.get("COVIA_VENUE_URL", "https://venue-3.covia.ai")
 
 with Grid.connect(VENUE_URL) as venue:
     # Prepare content and compute its SHA-256 hash (content-addressed storage)

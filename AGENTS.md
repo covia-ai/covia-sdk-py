@@ -26,7 +26,7 @@ pytest tests/unit -v
 pytest tests/unit --cov=covia --cov-report=term
 
 # Run integration tests (requires live venue)
-COVIA_VENUE_URL=https://venue-test.covia.ai pytest -m integration
+COVIA_VENUE_URL=https://venue-3.covia.ai pytest -m integration
 
 # Lint
 ruff check src/ tests/

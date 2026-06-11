@@ -27,7 +27,7 @@ pytest.importorskip("jwt", reason="integration tests need the 'signing' extra")
 from covia import Grid, UCANAttenuation  # noqa: E402
 from covia.auth import Ed25519Auth  # noqa: E402
 
-VENUE_URL = os.environ.get("COVIA_VENUE_URL", "https://venue-test.covia.ai")
+VENUE_URL = os.environ.get("COVIA_VENUE_URL", "https://venue-3.covia.ai")
 
 pytestmark = pytest.mark.integration
 
@@ -156,14 +156,6 @@ def test_cross_user_read_rejected_without_ucan(alice, bob):
         alice_venue.workspace.delete(f"/w/tests/{key}")
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Blocked by covia-ai/covia#87 — verifyProofs re-verifies the "
-        "JWT-derived signature against the CVM-encoded payload and "
-        "always fails. Test will start passing once that issue is fixed."
-    ),
-    strict=False,
-)
 def test_cross_user_read_with_ucan_delegation(alice, bob):
     """Alice issues a UCAN to Bob for a specific path, then Bob reads
     it successfully by presenting the token in ``ucans``.

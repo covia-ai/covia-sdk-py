@@ -8,7 +8,7 @@ import os
 
 from covia import Grid
 
-VENUE_URL = os.environ.get("COVIA_VENUE_URL", "https://venue-test.covia.ai")
+VENUE_URL = os.environ.get("COVIA_VENUE_URL", "https://venue-3.covia.ai")
 
 venue= Grid.connect(VENUE_URL)
 info = venue.status()

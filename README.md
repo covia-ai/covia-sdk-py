@@ -188,7 +188,7 @@ ruff check src/ tests/
 mypy src/covia/
 
 # Integration tests (requires a live venue)
-COVIA_VENUE_URL=https://venue-test.covia.ai pytest -m integration
+COVIA_VENUE_URL=https://venue-3.covia.ai pytest -m integration
 ```
 
 ## License
