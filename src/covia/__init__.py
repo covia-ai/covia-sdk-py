@@ -58,7 +58,7 @@ from covia.ucan import UCANManager
 from covia.venue import Venue
 from covia.workspace import WorkspaceManager
 
-__version__ = "0.2.0a1"
+__version__ = "0.2.0"
 
 # Library-level NullHandler — prevents "No handlers could be found" warnings.
 # Users must configure logging themselves to see SDK log output.

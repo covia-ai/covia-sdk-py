@@ -5,7 +5,7 @@
 **covia-sdk-py** is the Python SDK for the [Covia](https://covia.ai) federated AI orchestration grid. It provides sync and async clients for connecting to Covia venues, invoking operations, managing assets, and tracking job lifecycle — all with full type safety.
 
 - **Package name:** `covia`
-- **Version:** 0.2.0a1 (Alpha)
+- **Version:** 0.2.0
 - **License:** Apache-2.0
 - **Python:** 3.11+
 - **Build system:** Hatchling (PEP 517)

@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0a1
+## 0.2.0 — 2026-06-11
 
 ### Added
 
@@ -36,7 +36,7 @@
 
 - Python minimum raised to **3.11** (from 3.10) — required by
   `enum.StrEnum`, used in `JobStatus`.
-- Development Status still `Alpha`; API surface may change before 0.2.0 final.
+- Development Status remains `Alpha` (pre-1.0); the API surface may still change between minor versions.
 
 ## 0.1.0
 
