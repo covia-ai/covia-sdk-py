@@ -85,7 +85,7 @@ class WorkspaceManager:
 
         ``max_size`` caps the encoded response size (default ~1 MB server
         side). If exceeded, the result returns
-        ``exists=True, value=None, truncated=True, size=<bytes>``; pair
+        ``exists=True, value=None, truncated=True, valueBytes=<bytes>``; pair
         with :meth:`list` or :meth:`slice` to page through large values.
         """
         payload = _drop_none({"path": path, "maxSize": max_size})

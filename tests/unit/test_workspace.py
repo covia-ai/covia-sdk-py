@@ -89,5 +89,81 @@ def test_slice(httpx_mock, venue):
     assert result.values == [1, 2]
 
 
+# --- 0.2.x venue output shapes (covia#132): models must parse these without
+#     raising, and expose the new fields. The tests above cover pre-0.2.x. ---
+
+
+def test_read_0_2_x_value_bytes(httpx_mock, venue):
+    httpx_mock.add_response(
+        url=f"{API_BASE}invoke",
+        json=_complete({"exists": True, "value": {"x": 1}, "valueBytes": 42}),
+        status_code=201,
+    )
+    result = venue.workspace.read("/foo")
+    assert result.exists is True
+    assert result.valueBytes == 42
+    assert result.truncated is None
+
+
+def test_write_0_2_x_empty(httpx_mock, venue):
+    # Overwrite into existing structure → empty object; must not raise.
+    httpx_mock.add_response(url=f"{API_BASE}invoke", json=_complete({}), status_code=201)
+    result = venue.workspace.write("/foo", 1)
+    assert result.pathCreated is None
+
+
+def test_write_0_2_x_path_created(httpx_mock, venue):
+    httpx_mock.add_response(url=f"{API_BASE}invoke", json=_complete({"pathCreated": True}), status_code=201)
+    result = venue.workspace.write("/foo/bar/baz", 1)
+    assert result.pathCreated is True
+
+
+def test_delete_0_2_x_empty(httpx_mock, venue):
+    httpx_mock.add_response(url=f"{API_BASE}invoke", json=_complete({}), status_code=201)
+    result = venue.workspace.delete("/foo")  # must not raise (empty object)
+    assert result.deleted is None
+
+
+def test_append_0_2_x_new_size(httpx_mock, venue):
+    httpx_mock.add_response(
+        url=f"{API_BASE}invoke",
+        json=_complete({"newSize": 3, "pathCreated": True}),
+        status_code=201,
+    )
+    result = venue.workspace.append("/foo/items", "x")
+    assert result.newSize == 3
+    assert result.pathCreated is True
+
+
+def test_list_0_2_x_total_size(httpx_mock, venue):
+    httpx_mock.add_response(
+        url=f"{API_BASE}invoke",
+        json=_complete({"exists": True, "type": "Map", "totalSize": 2, "offset": 0, "keys": ["a", "b"]}),
+        status_code=201,
+    )
+    result = venue.workspace.list("/foo")
+    assert result.totalSize == 2
+    assert result.keys == ["a", "b"]
+
+
+def test_slice_0_2_x_total_size(httpx_mock, venue):
+    httpx_mock.add_response(
+        url=f"{API_BASE}invoke",
+        json=_complete({"exists": True, "type": "Vector", "values": [1, 2], "totalSize": 2, "offset": 0}),
+        status_code=201,
+    )
+    result = venue.workspace.slice("/foo", offset=0, limit=2)
+    assert result.values == [1, 2]
+    assert result.totalSize == 2
+
+
+def test_slice_0_2_x_absent_path(httpx_mock, venue):
+    # Absent path returns just {exists: false}; the pre-0.2.x required-field
+    # model raised here — the tolerant model must not.
+    httpx_mock.add_response(url=f"{API_BASE}invoke", json=_complete({"exists": False}), status_code=201)
+    result = venue.workspace.slice("/missing")
+    assert result.exists is False
+
+
 def test_lazy_manager_is_cached(venue):
     assert venue.workspace is venue.workspace

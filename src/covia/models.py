@@ -226,29 +226,44 @@ class AgentSuspendResult(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+# Result models tolerate both the pre-0.2.x and 0.2.x venue output shapes.
+# 0.2.x dropped the tautological CRUD flags and renamed read/list/slice fields
+# (covia#132); every formerly-required field that changed is now optional, and
+# the new field names are added, so one SDK build talks to venues either side of
+# the change. ``extra="allow"`` covers anything else.
+
+
 class WorkspaceReadResult(BaseModel):
     """Result of ``v/ops/covia/read``."""
 
     exists: bool
     value: Any = None
     truncated: bool | None = None
-    size: int | None = None
+    valueBytes: int | None = None  # 0.2.x: encoding size in bytes (always present)
+    size: int | None = None  # deprecated (pre-0.2.x: bytes, only on truncation)
 
     model_config = {"extra": "allow"}
 
 
 class WorkspaceWriteResult(BaseModel):
-    """Result of ``v/ops/covia/write``."""
+    """Result of ``v/ops/covia/write``.
 
-    written: bool
+    Success is the job reaching ``COMPLETE`` (the SDK raises otherwise). 0.2.x
+    returns ``pathCreated`` only when the write built a new parent path,
+    otherwise an empty object.
+    """
+
+    pathCreated: bool | None = None  # 0.2.x: true iff a new parent path was built
+    written: bool | None = None  # deprecated (pre-0.2.x: constant true)
 
     model_config = {"extra": "allow"}
 
 
 class WorkspaceDeleteResult(BaseModel):
-    """Result of ``v/ops/covia/delete``."""
+    """Result of ``v/ops/covia/delete``. 0.2.x returns an empty object; success
+    is the job status (the value is removed, parent hierarchy never pruned)."""
 
-    deleted: bool
+    deleted: bool | None = None  # deprecated (pre-0.2.x: constant true)
 
     model_config = {"extra": "allow"}
 
@@ -256,7 +271,9 @@ class WorkspaceDeleteResult(BaseModel):
 class WorkspaceAppendResult(BaseModel):
     """Result of ``v/ops/covia/append``."""
 
-    appended: bool
+    newSize: int | None = None  # 0.2.x: vector element count after the append
+    pathCreated: bool | None = None  # 0.2.x: true iff a new parent path was built
+    appended: bool | None = None  # deprecated (pre-0.2.x: constant true)
 
     model_config = {"extra": "allow"}
 
@@ -266,9 +283,11 @@ class WorkspaceListResult(BaseModel):
 
     exists: bool
     type: str
-    count: int | None = None
+    totalSize: int | None = None  # 0.2.x: total entries in the collection
+    offset: int | None = None
     keys: list[str] | None = None
     values: list[Any] | None = None
+    count: int | None = None  # deprecated (pre-0.2.x name for totalSize)
 
     model_config = {"extra": "allow"}
 
@@ -277,10 +296,11 @@ class WorkspaceSliceResult(BaseModel):
     """Result of ``v/ops/covia/slice``."""
 
     exists: bool
-    type: str
-    values: list[Any]
-    count: int
-    offset: int
+    type: str | None = None
+    values: list[Any] | None = None
+    totalSize: int | None = None  # 0.2.x: total entries in the collection
+    offset: int | None = None
+    count: int | None = None  # deprecated (pre-0.2.x name for totalSize)
 
     model_config = {"extra": "allow"}
 
