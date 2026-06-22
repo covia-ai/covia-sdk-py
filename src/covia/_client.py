@@ -39,6 +39,11 @@ class CoviaHTTPClient:
 
     def __init__(self, config: TransportConfig) -> None:
         self._config = config
+        # Cached venue DID for audience-bound auth (resolved from did.json on
+        # first use). ``_resolving_did`` guards the bootstrap fetch so it does
+        # not recurse through auth resolution.
+        self._venue_did: str | None = None
+        self._resolving_did: bool = False
         self._client = httpx.Client(
             base_url=config.api_url,
             timeout=config.timeout,
@@ -268,15 +273,38 @@ class CoviaHTTPClient:
         self._handle_error(response)
         return response
 
+    def _resolve_audience(self) -> str | None:
+        """The venue's DID, for audience-bound auth — fetched from did.json
+        once and cached. Returns ``None`` if it cannot be resolved (the token
+        is then sent without an ``aud``, i.e. a plain self-issued identity)."""
+        if self._venue_did is not None:
+            return self._venue_did
+        if self._resolving_did:
+            # Re-entrant: this call is the did.json bootstrap itself. It carries
+            # no audience to avoid an infinite loop (the endpoint is public).
+            return None
+        self._resolving_did = True
+        try:
+            self._venue_did = self.get_did_document().id
+        except Exception as exc:  # noqa: BLE001 — best-effort; auth still works without aud
+            logger.debug("Could not resolve venue DID for audience: %s", exc)
+            return None
+        finally:
+            self._resolving_did = False
+        return self._venue_did
+
     def _apply_auth(self, kwargs: dict[str, Any]) -> None:
         """Inject authentication headers into request kwargs."""
-        if self._config.auth is not None:
-            auth_headers: dict[str, str] = {}
-            self._config.auth.apply(auth_headers)
-            if auth_headers:
-                headers = dict(kwargs.get("headers", {}))
-                headers.update(auth_headers)
-                kwargs["headers"] = headers
+        auth = self._config.auth
+        if auth is None:
+            return
+        audience = self._resolve_audience() if auth.wants_audience else None
+        auth_headers: dict[str, str] = {}
+        auth.apply(auth_headers, audience=audience)
+        if auth_headers:
+            headers = dict(kwargs.get("headers", {}))
+            headers.update(auth_headers)
+            kwargs["headers"] = headers
 
     def _handle_error(self, response: httpx.Response) -> None:
         """Raise an appropriate exception for error responses."""

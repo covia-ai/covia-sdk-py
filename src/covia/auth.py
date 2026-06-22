@@ -41,12 +41,24 @@ class Auth(ABC):
             def __init__(self, key: str) -> None:
                 self._key = key
 
-            def apply(self, headers: dict[str, str]) -> None:
+            def apply(self, headers: dict[str, str], audience: str | None = None) -> None:
                 headers["X-Api-Key"] = self._key
     """
 
+    @property
+    def wants_audience(self) -> bool:
+        """Whether the transport should resolve the venue's DID and pass it as
+        the *audience* to :meth:`apply`.
+
+        Default ``False``. Providers that bind tokens to the venue's identity
+        (e.g. :class:`Ed25519Auth` with no explicit audience) override this to
+        ``True``; the transport then resolves the venue's reported DID (from
+        ``/.well-known/did.json``) once and supplies it on every call.
+        """
+        return False
+
     @abstractmethod
-    def apply(self, headers: dict[str, str]) -> None:
+    def apply(self, headers: dict[str, str], audience: str | None = None) -> None:
         """Apply authentication credentials to request headers.
 
         Implementations should mutate *headers* in place, adding any
@@ -54,6 +66,9 @@ class Auth(ABC):
 
         Args:
             headers: Mutable dict of HTTP headers for the outgoing request.
+            audience: The venue's resolved DID, supplied by the transport when
+                :attr:`wants_audience` is ``True``. Providers that don't need
+                it (the default) ignore this argument.
         """
 
 
@@ -64,7 +79,7 @@ class NoAuth(Auth):
     Equivalent to omitting the ``auth`` parameter entirely.
     """
 
-    def apply(self, headers: dict[str, str]) -> None:
+    def apply(self, headers: dict[str, str], audience: str | None = None) -> None:
         pass
 
     def __repr__(self) -> str:
@@ -90,7 +105,7 @@ class BearerAuth(Auth):
     def __init__(self, token: str) -> None:
         self._token = token
 
-    def apply(self, headers: dict[str, str]) -> None:
+    def apply(self, headers: dict[str, str], audience: str | None = None) -> None:
         headers["Authorization"] = f"Bearer {self._token}"
 
     def __repr__(self) -> str:
@@ -116,7 +131,7 @@ class BasicAuth(Auth):
         self._username = username
         self._password = password
 
-    def apply(self, headers: dict[str, str]) -> None:
+    def apply(self, headers: dict[str, str], audience: str | None = None) -> None:
         credentials = base64.b64encode(f"{self._username}:{self._password}".encode()).decode("ascii")
         headers["Authorization"] = f"Basic {credentials}"
 
@@ -266,14 +281,26 @@ class Ed25519Auth(Auth):
 
     @property
     def audience(self) -> str | None:
-        """The JWT ``aud`` claim value (venue DID or URL)."""
+        """Explicitly-pinned JWT ``aud`` value, or ``None`` to use the venue's
+        reported DID.
+
+        When ``None`` (the default), the transport resolves the venue's DID
+        from ``/.well-known/did.json`` and supplies it as the audience — so
+        the token is bound to the venue's actual identity rather than however
+        you happened to address it. Set this only to override that.
+        """
         return self._audience
 
     @audience.setter
     def audience(self, value: str | None) -> None:
         self._audience = value
 
-    def apply(self, headers: dict[str, str]) -> None:
+    @property
+    def wants_audience(self) -> bool:
+        # Ask the transport for the venue DID only when no audience is pinned.
+        return self._audience is None
+
+    def apply(self, headers: dict[str, str], audience: str | None = None) -> None:
         import jwt
 
         now = int(time.time())
@@ -283,8 +310,13 @@ class Ed25519Auth(Auth):
             "iat": now,
             "exp": now + self._token_lifetime,
         }
-        if self._audience is not None:
-            payload["aud"] = self._audience
+        # An explicitly-pinned audience wins; otherwise use the venue DID the
+        # transport resolved and supplied. Omit `aud` entirely if neither is
+        # available — the venue treats a no-aud token as a plain self-issued
+        # identity assertion.
+        aud = self._audience if self._audience is not None else audience
+        if aud is not None:
+            payload["aud"] = aud
         # The venue's auth middleware uses Multikey.decodePublicKey on the
         # `kid` header — that decoder requires the bare multibase string
         # (z6Mk...) and rejects the full did:key form.

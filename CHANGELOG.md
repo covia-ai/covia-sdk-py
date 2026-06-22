@@ -25,6 +25,17 @@
 
 ### Changed
 
+- **Auth audience is now the venue's reported DID.** `Ed25519Auth` (when no
+  audience is pinned) gets its JWT `aud` from the venue's DID document
+  (`/.well-known/did.json`), resolved once per connection and cached — instead
+  of `Grid.connect` deriving it from the connection string and mutating the
+  auth object in place. This makes `aud` correct however you address the venue
+  (URL or DID), and lets one `Ed25519Auth` be reused across venues safely.
+  Pin `Ed25519Auth(audience=...)` to override. **Breaking:** `Auth.apply()`
+  now takes an optional `audience` argument (`apply(self, headers, audience=None)`)
+  and gains a `wants_audience` property — custom `Auth` subclasses must accept
+  the new parameter. The first authenticated request now performs a one-time
+  `did.json` fetch to resolve the audience.
 - **`venue.ucan.issue(...)` return type** — now returns `UCANIssueResult`
   rather than a raw dict. Migrate `result["token"]` → `result.token`.
 - **Version single-sourced** in `src/covia/__init__.py`; `pyproject.toml`

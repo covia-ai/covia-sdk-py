@@ -319,24 +319,59 @@ class TestEd25519AuthIntegration:
         assert payload["iss"] == auth.did
         assert payload["aud"] == "did:web:test.covia.ai"
 
-    def test_grid_connect_auto_sets_audience(self, httpx_mock):
+    def test_audience_resolved_from_venue_did(self, httpx_mock):
+        # With no explicit audience, the aud is the venue's *reported* DID
+        # (from did.json), not the connection string — and the caller's auth
+        # object is never mutated.
+        httpx_mock.add_response(
+            url=f"{VENUE_URL}/.well-known/did.json",
+            json={"id": "did:web:test.covia.ai"},
+        )
         httpx_mock.add_response(url=f"{API_BASE}status", json={"name": "Test"})
         auth = Ed25519Auth.generate()  # No audience set
         assert auth.audience is None
 
         venue = Grid.connect(VENUE_URL, auth=auth)
         try:
-            # Grid.connect should have set audience from the connection string
-            assert auth.audience == VENUE_URL
             venue.status()
         finally:
             venue.close()
 
-        # Verify JWT contains the auto-set audience
-        request = httpx_mock.get_requests()[0]
-        token = request.headers["authorization"].removeprefix("Bearer ")
-        payload = jwt.decode(token, options={"verify_signature": False})
-        assert payload["aud"] == VENUE_URL
+        # The auth object is NOT mutated (no sticky connection-string audience).
+        assert auth.audience is None
+
+        # The API request's JWT carries aud = the venue's reported DID.
+        status_req = next(r for r in httpx_mock.get_requests() if r.url.path.endswith("/status"))
+        payload = jwt.decode(
+            status_req.headers["authorization"].removeprefix("Bearer "),
+            options={"verify_signature": False},
+        )
+        assert payload["aud"] == "did:web:test.covia.ai"
+
+        # The bootstrap did.json fetch itself carried no aud (re-entrancy guard).
+        did_req = next(r for r in httpx_mock.get_requests() if "did.json" in str(r.url))
+        did_payload = jwt.decode(
+            did_req.headers["authorization"].removeprefix("Bearer "),
+            options={"verify_signature": False},
+        )
+        assert "aud" not in did_payload
+
+    def test_audience_omitted_when_venue_reports_no_did(self, httpx_mock):
+        # If did.json can't be resolved, the token is still sent (self-issued),
+        # just without an aud — auth keeps working.
+        httpx_mock.add_response(url=f"{VENUE_URL}/.well-known/did.json", status_code=404)
+        httpx_mock.add_response(url=f"{API_BASE}status", json={"name": "Test"})
+        venue = Grid.connect(VENUE_URL, auth=Ed25519Auth.generate())
+        try:
+            venue.status()
+        finally:
+            venue.close()
+        status_req = next(r for r in httpx_mock.get_requests() if r.url.path.endswith("/status"))
+        payload = jwt.decode(
+            status_req.headers["authorization"].removeprefix("Bearer "),
+            options={"verify_signature": False},
+        )
+        assert "aud" not in payload
 
     def test_grid_connect_does_not_override_explicit_audience(self, httpx_mock):
         httpx_mock.add_response(url=f"{API_BASE}status", json={"name": "Test"})

@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import httpx
+import jwt
 import pytest
 
 from covia import CoviaTimeoutError, JobStatus
+from covia.async_api import AsyncGrid
 from covia.async_api.job import AsyncJob
+from covia.auth import Ed25519Auth
 from covia.models import JobData
 from tests.conftest import VENUE_URL
 
@@ -48,3 +51,24 @@ class TestAsyncJobWait:
         httpx_mock.add_response(url=f"{API_BASE}jobs/job001", json={"id": "job001", "status": "STARTED"})
         with pytest.raises(CoviaTimeoutError, match="did not finish"):
             await job.wait(timeout=0.1)
+
+
+class TestAsyncAuthAudience:
+    async def test_audience_resolved_from_venue_did(self, httpx_mock):
+        # Async parity: aud is the venue's reported DID, resolved from did.json,
+        # not the connection string; the auth object is not mutated.
+        httpx_mock.add_response(url=f"{VENUE_URL}/.well-known/did.json", json={"id": "did:web:test.covia.ai"})
+        httpx_mock.add_response(url=f"{API_BASE}status", json={"name": "Test"})
+        auth = Ed25519Auth.generate()
+        venue = AsyncGrid.connect(VENUE_URL, auth=auth)
+        try:
+            await venue.status()
+        finally:
+            await venue.aclose()
+        assert auth.audience is None
+        status_req = next(r for r in httpx_mock.get_requests() if r.url.path.endswith("/status"))
+        payload = jwt.decode(
+            status_req.headers["authorization"].removeprefix("Bearer "),
+            options={"verify_signature": False},
+        )
+        assert payload["aud"] == "did:web:test.covia.ai"
