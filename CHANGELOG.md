@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **`Venue.wait_until_ready()`** — block until the venue's API is ready to
+  serve operations, polling `GET /api/v1/status` (not the root URL, which a
+  venue answers before its invoke layer is initialised). Returns the ready
+  `VenueStatus`, or raises `CoviaTimeoutError` if the venue is not ready
+  within `timeout` (default 60s). Connection, HTTP, and per-request timeout
+  errors are treated as "not ready yet" and retried. Mirrored on `AsyncVenue`.
+- **`VenueStatus.status`** — the venue's readiness status field (e.g. `"OK"`)
+  is now typed rather than only available via `extra`.
+
 ## 0.2.0 — 2026-06-11
 
 ### Added

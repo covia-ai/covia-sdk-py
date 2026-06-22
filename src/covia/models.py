@@ -28,6 +28,7 @@ class InvokeRequest(BaseModel):
 class VenueStatus(BaseModel):
     """Venue status returned by ``GET /api/v1/status``."""
 
+    status: str | None = None
     url: str | None = None
     did: str | None = None
     name: str | None = None

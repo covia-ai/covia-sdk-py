@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import httpx
 import pytest
 
 from covia import (
@@ -50,6 +51,41 @@ class TestVenueStatus:
 
     def test_repr(self, venue):
         assert "test.covia.ai" in repr(venue)
+
+
+class TestVenueReady:
+    def test_ready_immediately(self, httpx_mock, venue):
+        httpx_mock.add_response(url=f"{API_BASE}status", json={"status": "OK", "name": "Test Venue"})
+        status = venue.wait_until_ready(timeout=5, poll_interval=0)
+        assert status.status == "OK"
+
+    def test_ready_when_no_status_field(self, httpx_mock, venue):
+        # Venues that omit an explicit status field are ready as soon as
+        # /api/v1/status responds at all.
+        httpx_mock.add_response(url=f"{API_BASE}status", json={"name": "Test Venue"})
+        status = venue.wait_until_ready(timeout=5, poll_interval=0)
+        assert status.name == "Test Venue"
+
+    def test_retries_until_ready(self, httpx_mock, venue):
+        # Connection refused twice (venue still booting), then OK.
+        httpx_mock.add_exception(httpx.ConnectError("refused"), url=f"{API_BASE}status")
+        httpx_mock.add_exception(httpx.ConnectError("refused"), url=f"{API_BASE}status")
+        httpx_mock.add_response(url=f"{API_BASE}status", json={"status": "OK"})
+        status = venue.wait_until_ready(timeout=5, poll_interval=0)
+        assert status.status == "OK"
+
+    def test_waits_for_ok_status(self, httpx_mock, venue):
+        # HTTP 200 but invoke layer still warming, then OK.
+        httpx_mock.add_response(url=f"{API_BASE}status", json={"status": "STARTING"})
+        httpx_mock.add_response(url=f"{API_BASE}status", json={"status": "OK"})
+        status = venue.wait_until_ready(timeout=5, poll_interval=0)
+        assert status.status == "OK"
+
+    def test_timeout_raises(self, httpx_mock, venue):
+        # Never ready → CoviaTimeoutError. timeout=0 → one attempt then raise.
+        httpx_mock.add_exception(httpx.ConnectError("refused"), url=f"{API_BASE}status")
+        with pytest.raises(CoviaTimeoutError):
+            venue.wait_until_ready(timeout=0, poll_interval=0)
 
 
 class TestVenueAssets:

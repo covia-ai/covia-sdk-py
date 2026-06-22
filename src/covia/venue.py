@@ -6,6 +6,7 @@ Mirrors ``covia.grid.Venue`` from the Java SDK.
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import Iterator
 from typing import Any
 
@@ -14,6 +15,7 @@ from covia._sse import SSEEvent
 from covia._transport import TransportConfig
 from covia.agents import AgentManager
 from covia.asset import Asset
+from covia.exceptions import CoviaError, CoviaTimeoutError
 from covia.job import Job
 from covia.models import (
     AgentCard,
@@ -101,6 +103,55 @@ class Venue:
     def status(self) -> VenueStatus:
         """Get venue status information."""
         return self._client.get_status()
+
+    def wait_until_ready(
+        self,
+        *,
+        timeout: float | None = 60.0,
+        poll_interval: float = 1.0,
+    ) -> VenueStatus:
+        """Block until the venue's API is ready to serve operations.
+
+        A venue process accepts connections on its root path *before* its
+        operation/invoke layer has finished initialising, so polling
+        :meth:`status` (``GET /api/v1/status``) — not the root URL — is the
+        reliable readiness signal. Invoking operations before the venue is
+        ready otherwise races and fails on a cold start.
+
+        The venue is considered ready as soon as :meth:`status` returns
+        successfully and reports either no explicit ``status`` field or
+        ``"OK"``. Connection, HTTP, and per-request timeout errors are
+        treated as "not ready yet" and retried until *timeout* elapses.
+
+        Args:
+            timeout: Maximum seconds to wait. ``None`` waits indefinitely.
+            poll_interval: Seconds between status polls.
+
+        Returns:
+            The :class:`~covia.models.VenueStatus` from the first ready
+            response.
+
+        Raises:
+            CoviaTimeoutError: If the venue is not ready within *timeout*.
+        """
+        start = time.monotonic()
+        last_error: Exception | None = None
+        attempt = 0
+        while True:
+            attempt += 1
+            try:
+                status = self.status()
+            except CoviaError as exc:
+                last_error = exc
+            else:
+                if status.status is None or status.status.upper() == "OK":
+                    logger.debug("Venue %s ready after %d attempt(s)", self._config.base_url, attempt)
+                    return status
+                last_error = None
+            if timeout is not None and (time.monotonic() - start) >= timeout:
+                msg = f"Venue {self._config.base_url} not ready within {timeout}s"
+                raise CoviaTimeoutError(msg) from last_error
+            time.sleep(poll_interval)
 
     @property
     def url(self) -> str:
