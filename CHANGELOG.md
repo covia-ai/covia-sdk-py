@@ -15,6 +15,12 @@
 - **`UCANIssueResult`** — `venue.ucan.issue(...)` now returns a typed result
   (with a `token` attribute) instead of a raw dict, consistent with the other
   managers.
+- **`ucans=` on the typed managers** — `venue.workspace.read/write/delete/append/list/slice`
+  and `venue.secrets.extract` now accept a `ucans=[token]` argument, threaded
+  into the invoke envelope. Previously capability-gated cross-DID access (reading
+  another user's workspace, extracting a granted secret) could only be done by
+  dropping to a raw `venue.run(op, input, ucans=[...])`; the ergonomic API now
+  supports it directly. Mirrored on the async managers.
 - **`covia.did` helpers** — `did_url(did, namespace, *segments)` and
   `parse_did_url` for building/splitting lattice addresses
   (`<DID>/<namespace>/<path>`), `is_did` / `did_method`, `did_web_to_url` /

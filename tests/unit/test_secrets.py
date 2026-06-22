@@ -65,6 +65,21 @@ def test_extract_via_op(httpx_mock, venue):
     assert result.value == "s3cret"
 
 
+def test_extract_forwards_ucans(httpx_mock, venue):
+    # extract requires a capability grant — the proof must reach the envelope.
+    import json
+
+    httpx_mock.add_response(
+        url=f"{API_BASE}invoke",
+        json=_complete({"name": "API_KEY", "value": "s3cret"}),
+        status_code=201,
+    )
+    venue.secrets.extract("API_KEY", ucans=["eyJ.grant"])
+    body = json.loads(httpx_mock.get_requests()[-1].content)
+    assert body["operation"] == "v/ops/secret/extract"
+    assert body["ucans"] == ["eyJ.grant"]
+
+
 def test_raw_venue_helpers(httpx_mock, venue):
     # Exercise the REST shim on Venue directly.
     httpx_mock.add_response(

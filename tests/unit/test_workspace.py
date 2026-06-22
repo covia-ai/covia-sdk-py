@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 
+from covia import Namespace, did_url
 from tests.conftest import VENUE_URL
 
 API_BASE = f"{VENUE_URL}/api/v1/"
@@ -11,6 +12,29 @@ API_BASE = f"{VENUE_URL}/api/v1/"
 
 def _complete(output: object) -> dict[str, object]:
     return {"id": "job-ws", "status": "COMPLETE", "output": output}
+
+
+def test_cross_did_read_forwards_ucans(httpx_mock, venue):
+    # Reading another DID's workspace: path built with did_url, proof passed
+    # as ucans — the token must land in the top-level invoke envelope.
+    httpx_mock.add_response(
+        url=f"{API_BASE}invoke",
+        json=_complete({"exists": True, "value": {"shared": True}}),
+        status_code=201,
+    )
+    path = did_url("did:key:zAlice", Namespace.WORKSPACE, "shared")
+    venue.workspace.read(path, ucans=["eyJ.proof"])
+    body = json.loads(httpx_mock.get_requests()[-1].content)
+    assert body["operation"] == "v/ops/covia/read"
+    assert body["input"] == {"path": "did:key:zAlice/w/shared"}
+    assert body["ucans"] == ["eyJ.proof"]
+
+
+def test_no_ucans_field_when_absent(httpx_mock, venue):
+    httpx_mock.add_response(url=f"{API_BASE}invoke", json=_complete({"exists": False}), status_code=201)
+    venue.workspace.read("/w/mine")
+    body = json.loads(httpx_mock.get_requests()[-1].content)
+    assert "ucans" not in body
 
 
 def test_read(httpx_mock, venue):

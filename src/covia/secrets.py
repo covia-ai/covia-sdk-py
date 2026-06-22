@@ -21,16 +21,22 @@ from typing import Any, Protocol
 
 from covia.models import SecretExtractResult, SecretSetResult
 
+# Alias at module scope so `list` resolves to the builtin — SecretManager
+# defines a `list()` method that would otherwise shadow it in annotations.
+_Ucans = list[str] | None
+
 
 class _SyncSecretVenue(Protocol):
-    def run(self, operation: str, input: Any = None, *, timeout: float | None = None) -> Any: ...
+    def run(self, operation: str, input: Any = None, *, timeout: float | None = None, ucans: _Ucans = None) -> Any: ...
     def list_secrets(self) -> list[str]: ...
     def put_secret(self, name: str, value: str) -> None: ...
     def delete_secret(self, name: str) -> None: ...
 
 
 class _AsyncSecretVenue(Protocol):
-    async def run(self, operation: str, input: Any = None, *, timeout: float | None = None) -> Any: ...
+    async def run(
+        self, operation: str, input: Any = None, *, timeout: float | None = None, ucans: _Ucans = None
+    ) -> Any: ...
     async def list_secrets(self) -> list[str]: ...
     async def put_secret(self, name: str, value: str) -> None: ...
     async def delete_secret(self, name: str) -> None: ...
@@ -61,13 +67,14 @@ class SecretManager:
         """Store a secret via ``v/ops/secret/set``."""
         return SecretSetResult.model_validate(self._venue.run("v/ops/secret/set", {"name": name, "value": value}))
 
-    def extract(self, name: str) -> SecretExtractResult:
+    def extract(self, name: str, *, ucans: _Ucans = None) -> SecretExtractResult:
         """Extract a secret value via ``v/ops/secret/extract``.
 
-        Requires a UCAN capability grant; the venue may reject this call
-        without an appropriate capability proof.
+        Requires a UCAN capability grant — pass the proof token(s) as
+        ``ucans=[token]``. Extracting another DID's secret needs a grant on
+        that DID's ``/s/<name>`` resource.
         """
-        return SecretExtractResult.model_validate(self._venue.run("v/ops/secret/extract", {"name": name}))
+        return SecretExtractResult.model_validate(self._venue.run("v/ops/secret/extract", {"name": name}, ucans=ucans))
 
 
 class AsyncSecretManager:
@@ -88,5 +95,7 @@ class AsyncSecretManager:
     async def set(self, name: str, value: str) -> SecretSetResult:
         return SecretSetResult.model_validate(await self._venue.run("v/ops/secret/set", {"name": name, "value": value}))
 
-    async def extract(self, name: str) -> SecretExtractResult:
-        return SecretExtractResult.model_validate(await self._venue.run("v/ops/secret/extract", {"name": name}))
+    async def extract(self, name: str, *, ucans: _Ucans = None) -> SecretExtractResult:
+        return SecretExtractResult.model_validate(
+            await self._venue.run("v/ops/secret/extract", {"name": name}, ucans=ucans)
+        )
