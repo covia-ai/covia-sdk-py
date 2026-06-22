@@ -169,8 +169,41 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on push/PR to `master`:
 
 ## Branch Strategy
 
-- **`master`** — Primary branch (release and production code)
-- Feature branches and PRs as needed
+- **`master`** — Primary branch; **always reflects the latest published release**. Every commit on `master` should correspond to a released (tagged) state.
+- **`develop`** — Active development; may be ahead of `master` between releases.
+- Feature branches and PRs as needed.
+
+---
+
+## Release process
+
+Releases are tag-driven: pushing a `vX.Y.Z` tag triggers `publish.yml` (CI → build → PyPI → GitHub Release). The publish job's `validate-tag` step requires the tag (minus the `v`) to equal `version` in `pyproject.toml` **exactly**.
+
+Checklist:
+
+1. On `develop`, bump `version` in `pyproject.toml` and update `CHANGELOG.md`.
+2. Commit (e.g. `Release X.Y.Z`) and push `develop`.
+3. Tag the release commit and push the tag — this triggers `publish.yml`:
+   ```bash
+   git tag vX.Y.Z && git push origin vX.Y.Z
+   ```
+4. **Promote `master` to the release** so it reflects the latest release:
+   ```bash
+   git checkout master
+   git merge --ff-only vX.Y.Z      # master fast-forwards to the tagged commit
+   git push origin master
+   git checkout develop
+   ```
+5. Confirm the **Release branch guard** workflow (`release-guard.yml`) is green.
+
+> Step 4 is the easy one to forget — skipping it leaves `master` stale (this is exactly how `master` once drifted behind `v0.2.0`). The guard workflow fails if `master` doesn't contain the latest final-release tag.
+
+### Tag format
+
+- Tags use the **`v` prefix** (`v0.2.0`) — the standard Git convention. The `v` is **not** part of the package version; PyPI tooling and `validate-tag` strip it.
+- The remainder is a [PEP 440](https://peps.python.org/pep-0440/) version and must match `pyproject.toml` exactly (normalised form). Use PEP 440 spellings, **not** SemVer-style suffixes:
+  - Pre-release: `v0.3.0a1`, `v0.3.0b1`, `v0.3.0rc1` &nbsp;(not `v0.3.0-alpha.1`)
+  - Post / dev: `v0.3.0.post1`, `v0.3.0.dev1`
 
 ---
 

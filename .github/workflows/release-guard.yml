@@ -1,0 +1,36 @@
+name: Release branch guard
+
+# Fails if `master` does not contain the latest final-release tag (vX.Y.Z).
+# Catches the case where a release is tagged but never promoted to master,
+# so master cannot silently drift behind a published release.
+
+on:
+  push:
+    branches: [master]
+  schedule:
+    - cron: "0 6 * * *"   # daily, 06:00 UTC
+  workflow_dispatch:
+
+jobs:
+  master-contains-latest-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0   # full history + tags for ancestry check
+
+      - name: Ensure master contains the latest final-release tag
+        run: |
+          git fetch --tags --force
+          LATEST=$(git tag -l 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1)
+          if [ -z "$LATEST" ]; then
+            echo "No final-release (vX.Y.Z) tags yet — nothing to check."
+            exit 0
+          fi
+          if git merge-base --is-ancestor "$LATEST" HEAD; then
+            echo "OK: master contains the latest release tag ${LATEST}."
+          else
+            echo "::error::master does not contain the latest release tag ${LATEST}. Fast-forward master up to ${LATEST} (see AGENTS.md → Release process)."
+            exit 1
+          fi
