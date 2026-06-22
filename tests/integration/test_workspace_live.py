@@ -24,7 +24,7 @@ import pytest
 pytest.importorskip("cryptography", reason="integration tests need the 'signing' extra")
 pytest.importorskip("jwt", reason="integration tests need the 'signing' extra")
 
-from covia import Grid, UCANAttenuation  # noqa: E402
+from covia import Grid, Namespace, UCANAttenuation, did_url  # noqa: E402
 from covia.auth import Ed25519Auth  # noqa: E402
 
 VENUE_URL = os.environ.get("COVIA_VENUE_URL", "https://venue-3.covia.ai")
@@ -33,7 +33,9 @@ pytestmark = pytest.mark.integration
 
 
 def _fresh_auth() -> Ed25519Auth:
-    return Ed25519Auth.generate(audience=VENUE_URL)
+    # No explicit audience — the SDK resolves the venue's DID from did.json
+    # and binds the JWT `aud` to it (correct regardless of how we connect).
+    return Ed25519Auth.generate()
 
 
 @pytest.fixture(scope="module")
@@ -138,7 +140,7 @@ def test_cross_user_read_rejected_without_ucan(alice, bob):
     bob_venue, _bob_auth = bob
 
     key = _unique("private")
-    alice_path = f"{alice_auth.did}/w/tests/{key}"
+    alice_path = did_url(alice_auth.did, Namespace.WORKSPACE, "tests", key)
 
     alice_venue.workspace.write(f"/w/tests/{key}", {"secret": "hush"})
 
@@ -165,7 +167,7 @@ def test_cross_user_read_with_ucan_delegation(alice, bob):
 
     key = _unique("shared")
     local_path = f"/w/tests/{key}"
-    alice_path = f"{alice_auth.did}/w/tests/{key}"
+    alice_path = did_url(alice_auth.did, Namespace.WORKSPACE, "tests", key)
 
     alice_venue.workspace.write(local_path, {"shared-with-bob": True})
 

@@ -14,6 +14,8 @@ from __future__ import annotations
 import hashlib
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
+from covia.did import Namespace, did_url
+
 if TYPE_CHECKING:
     from covia.job import Job
     from covia.venue import Venue  # noqa: F401 — resolves the _AssetBase["Venue"] base
@@ -174,7 +176,7 @@ class Asset(_AssetBase["Venue"]):
         venue_did = self._venue.did
         if venue_did is None:
             return None
-        return f"{venue_did}/a/{self._id}"
+        return did_url(venue_did, Namespace.ASSET, self._id)
 
     # ------------------------------------------------------------------
     # Content

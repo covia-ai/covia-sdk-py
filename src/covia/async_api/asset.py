@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from covia.asset import _AssetBase
+from covia.did import Namespace, did_url
 
 if TYPE_CHECKING:
     from covia.async_api.job import AsyncJob
@@ -46,7 +47,7 @@ class AsyncAsset(_AssetBase["AsyncVenue"]):
         venue_did = await self._venue.get_did()
         if venue_did is None:
             return None
-        return f"{venue_did}/a/{self._id}"
+        return did_url(venue_did, Namespace.ASSET, self._id)
 
     # ------------------------------------------------------------------
     # Content

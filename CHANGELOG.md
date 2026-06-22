@@ -15,6 +15,16 @@
 - **`UCANIssueResult`** — `venue.ucan.issue(...)` now returns a typed result
   (with a `token` attribute) instead of a raw dict, consistent with the other
   managers.
+- **`covia.did` helpers** — `did_url(did, namespace, *segments)` and
+  `parse_did_url` for building/splitting lattice addresses
+  (`<DID>/<namespace>/<path>`), `is_did` / `did_method`, `did_web_to_url` /
+  `url_to_did_web` (spec-correct, now with port `%3A` and path support), and
+  `Namespace` constants. `Asset.did_url` and connection resolution route
+  through these (no more duplicated string-building), and `resolve_connection`
+  now handles ported/path `did:web` DIDs. The module documents which DID a
+  lattice address takes: `w`/`o`/`g`/`j`/`s` are owner-DID-scoped (your auth
+  DID), **not** the venue DID; only `a` (content-addressed assets) uses the
+  venue DID.
 - **`AsyncAsset`** (`covia.async_api.AsyncAsset`) — `AsyncVenue.get_asset()`
   and `register()` now return an async-aware asset whose I/O methods
   (`get_content`, `put_content`, `invoke` → `AsyncJob`, `run`, `did_url`) are

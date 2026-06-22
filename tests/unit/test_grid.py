@@ -21,6 +21,12 @@ class TestResolveConnection:
     def test_did_web_with_whitespace(self):
         assert resolve_connection("  did:web:example.com  ") == "https://example.com"
 
+    def test_did_web_with_port(self):
+        assert resolve_connection("did:web:localhost%3A8080") == "https://localhost:8080"
+
+    def test_did_web_with_path(self):
+        assert resolve_connection("did:web:example.com:venues:v1") == "https://example.com/venues/v1"
+
     def test_unknown_format_raises(self):
         with pytest.raises(ValueError, match="Unrecognised"):
             resolve_connection("ftp://bad")

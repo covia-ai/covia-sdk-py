@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING
 
 import httpx
 
+from covia.did import did_web_to_url
+
 if TYPE_CHECKING:
     from covia.auth import Auth
 
@@ -62,8 +64,7 @@ def resolve_connection(connection: str) -> str:
             logger.warning("Connecting over plain HTTP (no TLS): %s", connection)
         return connection
     if connection.startswith("did:web:"):
-        host = connection.removeprefix("did:web:")
-        url = f"https://{host}"
+        url = did_web_to_url(connection)
         logger.debug("Resolved DID %s → %s", connection, url)
         return url
     raise ValueError(f"Unrecognised connection format: {connection!r}")

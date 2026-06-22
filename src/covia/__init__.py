@@ -11,6 +11,16 @@ Connect to a Covia venue and invoke operations::
 from covia.agents import AgentManager
 from covia.asset import Asset
 from covia.auth import Auth, BasicAuth, BearerAuth, Ed25519Auth, NoAuth
+from covia.did import (
+    DIDURL,
+    Namespace,
+    did_method,
+    did_url,
+    did_web_to_url,
+    is_did,
+    parse_did_url,
+    url_to_did_web,
+)
 from covia.exceptions import (
     AssetNotFoundError,
     CoviaConnectionError,
@@ -89,6 +99,15 @@ __all__ = [
     "BearerAuth",
     "BasicAuth",
     "Ed25519Auth",
+    # DID / lattice paths
+    "Namespace",
+    "DIDURL",
+    "did_url",
+    "parse_did_url",
+    "is_did",
+    "did_method",
+    "did_web_to_url",
+    "url_to_did_web",
     # Models
     "VenueStatus",
     "AssetList",
