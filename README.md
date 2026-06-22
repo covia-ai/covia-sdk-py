@@ -36,15 +36,37 @@ venue = Grid.connect("https://venue.covia.ai")
 # By DID
 venue = Grid.connect("did:web:venue.covia.ai")
 
-# With custom headers (e.g. auth)
-venue = Grid.connect(
-    "https://venue.covia.ai",
-    headers={"Authorization": "Bearer <token>"},
-)
+# With authentication (see "Authentication" below)
+from covia.auth import BearerAuth
+venue = Grid.connect("https://venue.covia.ai", auth=BearerAuth("<token>"))
+
+# With extra custom headers
+venue = Grid.connect("https://venue.covia.ai", headers={"X-Trace-Id": "abc"})
 
 # As a context manager
 with Grid.connect("https://venue.covia.ai") as venue:
+    venue.wait_until_ready()   # optional: block until a cold venue is ready
     result = venue.run("my-operation", {"prompt": "hello"})
+```
+
+### Authentication
+
+Pass an auth provider to `Grid.connect(..., auth=...)`:
+
+```python
+from covia import Grid
+from covia.auth import BearerAuth, BasicAuth, Ed25519Auth
+
+# Bearer token
+venue = Grid.connect("https://venue.covia.ai", auth=BearerAuth("<token>"))
+
+# HTTP Basic
+venue = Grid.connect("https://venue.covia.ai", auth=BasicAuth("user", "pass"))
+
+# Self-issued Ed25519 JWT (requires the signing extra: pip install covia[signing])
+auth = Ed25519Auth.generate(audience="did:web:venue.covia.ai")
+print(auth.did)  # did:key:z6Mk...
+venue = Grid.connect("did:web:venue.covia.ai", auth=auth)
 ```
 
 ### Invoke Operations
@@ -95,18 +117,19 @@ for event in job.stream():
 ### Asset Management
 
 ```python
-# Register an asset
-asset_id = venue.register_asset({
+# Register an asset — returns an Asset with a server-assigned id
+asset = venue.register({
     "name": "Training Data",
     "description": "Model training dataset",
     "content-type": "application/json",
 })
+print(asset.id)
 
 # Upload content
-venue.put_asset_content(asset_id, b'{"records": [...]}')
+asset.put_content(b'{"records": [...]}')
 
 # Retrieve an asset
-asset = venue.get_asset(asset_id)
+asset = venue.get_asset(asset.id)
 print(asset.name)
 print(asset.metadata)
 
@@ -137,6 +160,34 @@ mcp = venue.mcp_discovery()
 
 # A2A agent card
 card = venue.agent_card()
+```
+
+### Agents, Secrets, Workspace & UCANs
+
+Typed accessors for the venue's `v/ops/*` operations:
+
+```python
+# Agents (v/ops/agent/*)
+venue.agents.create("my-agent", config={...}, overwrite=True)
+reply = venue.agents.chat("my-agent", "hello")     # returns AgentChatResult
+print(reply.sessionId, reply.response)
+
+# Secrets (v/ops/secret/* and REST)
+venue.secrets.set("ANTHROPIC_API_KEY", "sk-...")
+print(venue.secrets.list())
+
+# Workspace lattice (v/ops/covia/*)
+venue.workspace.write("w/notes/today", {"text": "hi"})
+print(venue.workspace.read("w/notes/today").value)
+
+# UCAN delegation (v/ops/ucan/*)
+from covia import UCANAttenuation
+token = venue.ucan.issue(
+    "did:key:zBob",
+    [UCANAttenuation(with_="did:key:zAlice/w/shared", can="crud/read")],
+    expiry=2_000_000_000,
+).token
+result = venue.run("v/ops/covia/read", {"path": "did:key:zAlice/w/shared"}, ucans=[token])
 ```
 
 ### Async Support

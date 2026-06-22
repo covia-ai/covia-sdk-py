@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
 
@@ -118,14 +119,13 @@ class AsyncJob:
             return
 
         delay = _INITIAL_POLL_DELAY
-        elapsed = 0.0
+        start = time.monotonic()
         logger.debug("Polling job %s (status: %s)", self.id, self.status)
 
         while not self.is_finished:
-            if timeout is not None and elapsed > timeout:
+            if timeout is not None and (time.monotonic() - start) > timeout:
                 raise CoviaTimeoutError(f"Job {self.id} did not finish within {timeout}s")
             await asyncio.sleep(delay)
-            elapsed += delay
             await self.refresh()
             logger.debug("Job %s polled → %s (delay=%.1fs)", self.id, self.status, delay)
             delay = min(delay * _BACKOFF_FACTOR, _MAX_POLL_DELAY)

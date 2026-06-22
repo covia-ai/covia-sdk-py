@@ -22,7 +22,7 @@ def test_issue_with_attenuation_models(httpx_mock, venue):
     )
     atts = [UCANAttenuation(with_="did:key:zAlice/w/shared", can="crud/read")]
     result = venue.ucan.issue("did:key:zBob", atts, expiry=2_000_000_000)
-    assert result == {"token": "eyJ..."}
+    assert result.token == "eyJ..."
 
     body = json.loads(httpx_mock.get_requests()[-1].content)
     assert body["operation"] == "v/ops/ucan/issue"

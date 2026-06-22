@@ -320,6 +320,18 @@ class UCANAttenuation(BaseModel):
     model_config = {"extra": "allow", "populate_by_name": True}
 
 
+class UCANIssueResult(BaseModel):
+    """Result of ``v/ops/ucan/issue`` — the issued delegation token.
+
+    Pass :attr:`token` as an element of the ``ucans`` list on subsequent
+    invokes (``venue.run(op, input, ucans=[result.token])``).
+    """
+
+    token: str
+
+    model_config = {"extra": "allow"}
+
+
 # ---------------------------------------------------------------------------
 # Secret models (v/ops/secret/*)
 # ---------------------------------------------------------------------------

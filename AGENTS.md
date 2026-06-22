@@ -181,7 +181,9 @@ Releases are tag-driven: pushing a `vX.Y.Z` tag triggers `publish.yml` (CI → b
 
 Checklist:
 
-1. On `develop`, bump `version` in `pyproject.toml` and update `CHANGELOG.md`.
+1. On `develop`, bump `__version__` in `src/covia/__init__.py` (the single
+   version source — `pyproject.toml` reads it via `[tool.hatch.version]`) and
+   update `CHANGELOG.md`.
 2. Commit (e.g. `Release X.Y.Z`) and push `develop`.
 3. Tag the release commit and push the tag — this triggers `publish.yml`:
    ```bash

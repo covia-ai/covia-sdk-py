@@ -25,7 +25,7 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
-from covia.models import UCANAttenuation
+from covia.models import UCANAttenuation, UCANIssueResult
 
 
 class _SyncInvoker(Protocol):
@@ -54,7 +54,7 @@ class UCANManager:
         audience: str,
         attenuations: list[UCANAttenuation] | list[dict[str, Any]],
         expiry: int,
-    ) -> Any:
+    ) -> UCANIssueResult:
         """Issue a UCAN delegation to ``audience`` with the given capabilities.
 
         Args:
@@ -63,11 +63,14 @@ class UCANManager:
             expiry: Unix timestamp (seconds) after which the UCAN is no longer valid.
 
         Returns:
-            Raw venue response (shape is backend-defined, typically a dict).
+            A :class:`~covia.models.UCANIssueResult` carrying the issued
+            ``token``.
         """
-        return self._venue.run(
-            "v/ops/ucan/issue",
-            {"aud": audience, "att": _serialise_atts(attenuations), "exp": expiry},
+        return UCANIssueResult.model_validate(
+            self._venue.run(
+                "v/ops/ucan/issue",
+                {"aud": audience, "att": _serialise_atts(attenuations), "exp": expiry},
+            )
         )
 
 
@@ -82,8 +85,10 @@ class AsyncUCANManager:
         audience: str,
         attenuations: list[UCANAttenuation] | list[dict[str, Any]],
         expiry: int,
-    ) -> Any:
-        return await self._venue.run(
-            "v/ops/ucan/issue",
-            {"aud": audience, "att": _serialise_atts(attenuations), "exp": expiry},
+    ) -> UCANIssueResult:
+        return UCANIssueResult.model_validate(
+            await self._venue.run(
+                "v/ops/ucan/issue",
+                {"aud": audience, "att": _serialise_atts(attenuations), "exp": expiry},
+            )
         )

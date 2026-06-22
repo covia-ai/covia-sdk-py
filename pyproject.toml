@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "covia"
-version = "0.2.0"
+dynamic = ["version"]
 description = "Python SDK for the Covia federated AI orchestration grid"
 readme = "README.md"
 license = "Apache-2.0"
@@ -54,10 +54,13 @@ docs = [
 
 [project.urls]
 Homepage = "https://covia.ai"
-Documentation = "https://docs.covia.ai/sdk/python"
+Documentation = "https://docs.covia.ai/docs/user-guide/sdk/python"
 Repository = "https://github.com/covia-ai/covia-sdk-py"
 Changelog = "https://github.com/covia-ai/covia-sdk-py/blob/master/CHANGELOG.md"
 Issues = "https://github.com/covia-ai/covia-sdk-py/issues"
+
+[tool.hatch.version]
+path = "src/covia/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/covia"]

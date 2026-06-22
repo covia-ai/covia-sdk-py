@@ -13,15 +13,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate tag matches pyproject.toml version
+      - name: Validate tag matches package version
         run: |
           TAG="${GITHUB_REF#refs/tags/v}"
-          VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml)
+          # Version is single-sourced in src/covia/__init__.py (pyproject reads
+          # it dynamically via [tool.hatch.version]).
+          VERSION=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' src/covia/__init__.py)
           if [ "$TAG" != "$VERSION" ]; then
-            echo "::error::Tag v${TAG} does not match pyproject.toml version ${VERSION}"
+            echo "::error::Tag v${TAG} does not match __version__ ${VERSION} in src/covia/__init__.py"
             exit 1
           fi
-          echo "Tag v${TAG} matches pyproject.toml version ${VERSION}"
+          echo "Tag v${TAG} matches __version__ ${VERSION}"
 
   build:
     needs: [ci, validate-tag]

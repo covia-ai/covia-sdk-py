@@ -12,6 +12,28 @@
   errors are treated as "not ready yet" and retried. Mirrored on `AsyncVenue`.
 - **`VenueStatus.status`** — the venue's readiness status field (e.g. `"OK"`)
   is now typed rather than only available via `extra`.
+- **`UCANIssueResult`** — `venue.ucan.issue(...)` now returns a typed result
+  (with a `token` attribute) instead of a raw dict, consistent with the other
+  managers.
+
+### Changed
+
+- **`venue.ucan.issue(...)` return type** — now returns `UCANIssueResult`
+  rather than a raw dict. Migrate `result["token"]` → `result.token`.
+- **Version single-sourced** in `src/covia/__init__.py`; `pyproject.toml`
+  derives it via `[tool.hatch.version]`, so the package metadata and
+  `covia.__version__` can no longer drift apart.
+
+### Fixed
+
+- **Async `Job.wait(timeout=...)`** now measures elapsed time with a
+  wall-clock (`time.monotonic`) like the sync version, instead of summing the
+  poll delays (which ignored network time and under-counted the timeout).
+- **README** — corrected the asset example (`venue.register(...)` returns an
+  `Asset`; there is no `venue.register_asset`), documented the `auth=`
+  providers (`BearerAuth` / `BasicAuth` / `Ed25519Auth`) and the
+  `agents` / `secrets` / `workspace` / `ucan` managers, and fixed the PyPI
+  `Documentation` URL.
 
 ## 0.2.0 — 2026-06-11
 

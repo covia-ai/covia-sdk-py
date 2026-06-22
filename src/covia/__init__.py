@@ -44,6 +44,7 @@ from covia.models import (
     SecretExtractResult,
     SecretSetResult,
     UCANAttenuation,
+    UCANIssueResult,
     VenueStatus,
     WorkspaceAppendResult,
     WorkspaceDeleteResult,
@@ -58,6 +59,9 @@ from covia.ucan import UCANManager
 from covia.venue import Venue
 from covia.workspace import WorkspaceManager
 
+# Single source of truth for the package version. Hatchling reads this literal
+# at build time (see [tool.hatch.version] in pyproject.toml), so the installed
+# package metadata always matches this value — no duplication, no drift.
 __version__ = "0.2.0"
 
 # Library-level NullHandler — prevents "No handlers could be found" warnings.
@@ -114,6 +118,7 @@ __all__ = [
     "WorkspaceSliceResult",
     # UCAN + Secret models
     "UCANAttenuation",
+    "UCANIssueResult",
     "SecretSetResult",
     "SecretExtractResult",
     # Exceptions
