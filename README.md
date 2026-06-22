@@ -204,6 +204,12 @@ async def main():
         # Async job lifecycle
         job = await venue.invoke("long-op", {"data": "..."})
         output = await job.result(timeout=60)
+
+        # Async assets — get_asset/register return an AsyncAsset
+        asset = await venue.get_asset("abc123...")
+        if asset.is_operation:            # data accessors stay sync
+            out = await asset.run({"x": 1})
+        data = await asset.get_content()
 ```
 
 ### Error Handling

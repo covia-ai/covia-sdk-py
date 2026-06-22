@@ -9,6 +9,7 @@ Example::
 """
 
 from covia.agents import AsyncAgentManager
+from covia.async_api.asset import AsyncAsset
 from covia.async_api.grid import AsyncGrid
 from covia.async_api.job import AsyncJob
 from covia.async_api.venue import AsyncVenue
@@ -20,6 +21,7 @@ __all__ = [
     "AsyncGrid",
     "AsyncVenue",
     "AsyncJob",
+    "AsyncAsset",
     "AsyncAgentManager",
     "AsyncSecretManager",
     "AsyncUCANManager",

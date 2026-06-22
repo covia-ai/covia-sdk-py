@@ -12,7 +12,7 @@ from covia._async_client import AsyncCoviaHTTPClient
 from covia._sse import SSEEvent
 from covia._transport import TransportConfig
 from covia.agents import AsyncAgentManager
-from covia.asset import Asset
+from covia.async_api.asset import AsyncAsset
 from covia.async_api.job import AsyncJob
 from covia.exceptions import CoviaError, CoviaTimeoutError
 from covia.models import (
@@ -176,7 +176,7 @@ class AsyncVenue:
         """List assets registered at this venue."""
         return await self._client.list_assets(offset=offset, limit=limit)
 
-    async def get_asset(self, asset_id: str) -> Asset:
+    async def get_asset(self, asset_id: str) -> AsyncAsset:
         """Get an asset by its ID.
 
         Raises:
@@ -184,22 +184,22 @@ class AsyncVenue:
         """
         metadata, metadata_raw = await self._client.get_asset_metadata(asset_id)
         if metadata_raw is not None:
-            computed = Asset.compute_id(metadata_raw)
+            computed = AsyncAsset.compute_id(metadata_raw)
             if computed != asset_id:
                 raise ValueError(f"Asset ID mismatch: requested {asset_id!r} but metadata hashes to {computed!r}")
-        return Asset(metadata=metadata, id=asset_id, venue=self, metadata_raw=metadata_raw)
+        return AsyncAsset(metadata=metadata, id=asset_id, venue=self, metadata_raw=metadata_raw)
 
-    async def register(self, asset: Asset | dict[str, Any]) -> Asset:
+    async def register(self, asset: AsyncAsset | dict[str, Any]) -> AsyncAsset:
         """Register a new asset at this venue.
 
         Args:
-            asset: An :class:`Asset` instance or a metadata dictionary.
+            asset: An :class:`AsyncAsset` instance or a metadata dictionary.
 
         Returns:
-            A registered :class:`Asset` with the server-assigned ID
+            A registered :class:`AsyncAsset` with the server-assigned ID
             and this venue attached.
         """
-        metadata = asset.metadata if isinstance(asset, Asset) else asset
+        metadata = asset.metadata if isinstance(asset, AsyncAsset) else asset
         asset_id = await self._client.register_asset(metadata)
         return await self.get_asset(asset_id)
 

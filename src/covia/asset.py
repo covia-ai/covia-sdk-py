@@ -1,36 +1,35 @@
 """Asset — a universal data asset on the Covia grid.
 
 Mirrors ``covia.grid.Asset`` from the Java SDK.
+
+The data and identity of an asset (metadata accessors, content-address
+computation, equality) are shared between the sync :class:`Asset` and the
+async :class:`covia.async_api.asset.AsyncAsset` via :class:`_AssetBase`; the
+subclasses add the I/O methods (content, invoke, run) with their respective
+sync/async call contracts.
 """
 
 from __future__ import annotations
 
 import hashlib
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 if TYPE_CHECKING:
     from covia.job import Job
-    from covia.venue import Venue
+    from covia.venue import Venue  # noqa: F401 — resolves the _AssetBase["Venue"] base
+
+# Venue type the asset is bound to. Generic only so each subclass can type its
+# ``_venue`` (and the venue-touching helpers) precisely under strict mypy — the
+# public Asset / AsyncAsset classes are fully specialised, so callers never see
+# the type variable.
+_VenueT = TypeVar("_VenueT")
 
 
-class Asset:
-    """A Covia asset — an immutable, content-addressed data object.
+class _AssetBase(Generic[_VenueT]):
+    """Shared metadata, identity, and equality for sync and async assets.
 
-    Assets can represent data (with downloadable content) or operations
-    (invocable via :meth:`invoke` / :meth:`run`).
-
-    Example::
-
-        asset = venue.get_asset("abc123...")
-        print(asset.name)
-        print(asset.metadata)
-
-        # If the asset is an operation
-        if asset.is_operation:
-            result = asset.run({"prompt": "hello"})
-
-        # Download content
-        data = asset.get_content()
+    Holds everything that does not touch the network. The sync/async
+    subclasses add the I/O methods.
     """
 
     def __init__(
@@ -38,17 +37,13 @@ class Asset:
         metadata: dict[str, Any],
         *,
         id: str | None = None,
-        venue: Venue | Any = None,
+        venue: _VenueT | None = None,
         metadata_raw: str | None = None,
     ) -> None:
         self._id = id
         self._metadata = metadata
-        self._venue = venue
+        self._venue: _VenueT | None = venue
         self._metadata_raw = metadata_raw
-
-    # ------------------------------------------------------------------
-    # Properties
-    # ------------------------------------------------------------------
 
     @staticmethod
     def compute_id(metadata_raw: str) -> str:
@@ -109,6 +104,69 @@ class Asset:
         return "operation" in self._metadata
 
     @property
+    def venue(self) -> _VenueT | None:
+        """The venue this asset belongs to, or ``None``."""
+        return self._venue
+
+    def _require_registered(self, action: str) -> tuple[_VenueT, str]:
+        """Return ``(venue, id)`` or raise if either is missing.
+
+        *action* names the attempted operation for the error message
+        (e.g. ``"get content"`` → ``"Cannot get content: ..."``).
+        """
+        if self._venue is None:
+            raise ValueError(f"Cannot {action}: asset has no attached venue")
+        if self._id is None:
+            raise ValueError(f"Cannot {action}: asset has no ID (not yet registered)")
+        return self._venue, self._id
+
+    # ------------------------------------------------------------------
+    # Dunder methods
+    # ------------------------------------------------------------------
+
+    def __repr__(self) -> str:
+        if self.name:
+            label = self.name
+        elif self._id is not None:
+            label = self._id[:16]
+        else:
+            label = "unregistered"
+        return f"{type(self).__name__}({label!r})"
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, _AssetBase):
+            if self._id is None or other._id is None:
+                return self is other
+            return self._id == other._id
+        return NotImplemented
+
+    def __hash__(self) -> int:
+        if self._id is None:
+            return id(self)
+        return hash(self._id)
+
+
+class Asset(_AssetBase["Venue"]):
+    """A Covia asset — an immutable, content-addressed data object.
+
+    Assets can represent data (with downloadable content) or operations
+    (invocable via :meth:`invoke` / :meth:`run`).
+
+    Example::
+
+        asset = venue.get_asset("abc123...")
+        print(asset.name)
+        print(asset.metadata)
+
+        # If the asset is an operation
+        if asset.is_operation:
+            result = asset.run({"prompt": "hello"})
+
+        # Download content
+        data = asset.get_content()
+    """
+
+    @property
     def did_url(self) -> str | None:
         """DID URL for this asset, or ``None`` if no venue is attached or no ID assigned."""
         if self._id is None or self._venue is None:
@@ -117,11 +175,6 @@ class Asset:
         if venue_did is None:
             return None
         return f"{venue_did}/a/{self._id}"
-
-    @property
-    def venue(self) -> Venue | Any:
-        """The venue this asset belongs to, or ``None``."""
-        return self._venue
 
     # ------------------------------------------------------------------
     # Content
@@ -133,11 +186,8 @@ class Asset:
         Raises:
             ValueError: If no venue is attached or no ID assigned.
         """
-        if self._venue is None:
-            raise ValueError("Cannot get content: asset has no attached venue")
-        if self._id is None:
-            raise ValueError("Cannot get content: asset has no ID (not yet registered)")
-        return self._venue.get_asset_content(self._id)
+        venue, asset_id = self._require_registered("get content")
+        return venue.get_asset_content(asset_id)
 
     def put_content(self, content: bytes) -> str:
         """Upload content for this asset.
@@ -151,11 +201,8 @@ class Asset:
         Raises:
             ValueError: If no venue is attached or no ID assigned.
         """
-        if self._venue is None:
-            raise ValueError("Cannot put content: asset has no attached venue")
-        if self._id is None:
-            raise ValueError("Cannot put content: asset has no ID (not yet registered)")
-        return self._venue.put_asset_content(self._id, content)
+        venue, asset_id = self._require_registered("put content")
+        return venue.put_asset_content(asset_id, content)
 
     # ------------------------------------------------------------------
     # Invocation
@@ -173,11 +220,8 @@ class Asset:
         Raises:
             ValueError: If no venue is attached or no ID assigned.
         """
-        if self._venue is None:
-            raise ValueError("Cannot invoke: asset has no attached venue")
-        if self._id is None:
-            raise ValueError("Cannot invoke: asset has no ID (not yet registered)")
-        return self._venue.invoke(self._id, input)
+        venue, asset_id = self._require_registered("invoke")
+        return venue.invoke(asset_id, input)
 
     def run(self, input: Any = None, *, timeout: float | None = None) -> Any:
         """Invoke this asset and wait for the result.
@@ -194,33 +238,5 @@ class Asset:
             JobFailedError: If the job finishes with a non-COMPLETE status.
             CoviaTimeoutError: If the timeout is exceeded.
         """
-        if self._venue is None:
-            raise ValueError("Cannot run: asset has no attached venue")
-        if self._id is None:
-            raise ValueError("Cannot run: asset has no ID (not yet registered)")
-        return self._venue.run(self._id, input, timeout=timeout)
-
-    # ------------------------------------------------------------------
-    # Dunder methods
-    # ------------------------------------------------------------------
-
-    def __repr__(self) -> str:
-        if self.name:
-            label = self.name
-        elif self._id is not None:
-            label = self._id[:16]
-        else:
-            label = "unregistered"
-        return f"Asset({label!r})"
-
-    def __eq__(self, other: object) -> bool:
-        if isinstance(other, Asset):
-            if self._id is None or other._id is None:
-                return self is other
-            return self._id == other._id
-        return NotImplemented
-
-    def __hash__(self) -> int:
-        if self._id is None:
-            return id(self)
-        return hash(self._id)
+        venue, asset_id = self._require_registered("run")
+        return venue.run(asset_id, input, timeout=timeout)

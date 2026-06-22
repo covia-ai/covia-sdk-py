@@ -6,20 +6,11 @@ import httpx
 import pytest
 
 from covia import CoviaTimeoutError, JobStatus
-from covia.async_api import AsyncGrid
 from covia.async_api.job import AsyncJob
 from covia.models import JobData
+from tests.conftest import VENUE_URL
 
-VENUE_URL = "https://test.covia.ai"
 API_BASE = f"{VENUE_URL}/api/v1/"
-
-
-@pytest.fixture
-async def async_venue():
-    """An AsyncVenue backed by a mocked HTTP transport."""
-    v = AsyncGrid.connect(VENUE_URL)
-    yield v
-    await v.aclose()
 
 
 class TestAsyncVenueReady:

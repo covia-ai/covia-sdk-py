@@ -15,6 +15,13 @@
 - **`UCANIssueResult`** — `venue.ucan.issue(...)` now returns a typed result
   (with a `token` attribute) instead of a raw dict, consistent with the other
   managers.
+- **`AsyncAsset`** (`covia.async_api.AsyncAsset`) — `AsyncVenue.get_asset()`
+  and `register()` now return an async-aware asset whose I/O methods
+  (`get_content`, `put_content`, `invoke` → `AsyncJob`, `run`, `did_url`) are
+  awaitable. Previously they returned the sync `Asset`, whose methods returned
+  un-awaited coroutines (and `did_url` raised) on an `AsyncVenue`. Data
+  accessors (`name`, `metadata`, `is_operation`, …) remain sync, shared with
+  `Asset`.
 
 ### Changed
 
