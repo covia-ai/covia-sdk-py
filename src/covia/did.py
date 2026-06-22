@@ -119,6 +119,23 @@ def did_url(did: str | None, namespace: str, *segments: str) -> str:
     return f"{did}/{base}" if did else base
 
 
+def asset_hash(ref: str) -> str | None:
+    """The content hash *ref* pins to, or ``None`` if it isn't content-addressed.
+
+    Recognises a bare hex hash, ``a/<hash>``, and ``<DID>/a/<hash>`` — the forms
+    that name a specific immutable asset. Mutable lattice paths (``w/…``,
+    ``o/…``) return ``None``: they resolve to an asset server-side, so there's
+    no client-side hash to verify against.
+    """
+    if "/" not in ref:
+        s = ref[2:] if ref.startswith("0x") else ref
+        return ref if s and all(c in "0123456789abcdefABCDEF" for c in s) else None
+    parsed = parse_did_url(ref)
+    if parsed.namespace == Namespace.ASSET and parsed.path and "/" not in parsed.path:
+        return parsed.path
+    return None
+
+
 def did_web_to_url(did: str, *, scheme: str = "https") -> str:
     """Resolve a ``did:web`` DID to its base URL, per the W3C did:web rules.
 

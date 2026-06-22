@@ -7,6 +7,7 @@ import pytest
 from covia.did import (
     DIDURL,
     Namespace,
+    asset_hash,
     did_method,
     did_url,
     did_web_to_url,
@@ -109,6 +110,27 @@ class TestParseDidUrl:
     def test_roundtrip(self, did, ns, segs):
         parsed = parse_did_url(did_url(did, ns, *segs))
         assert (parsed.did, parsed.namespace, parsed.path) == (did, ns, "/".join(segs))
+
+
+class TestAssetHash:
+    @pytest.mark.parametrize(
+        "ref,expected",
+        [
+            ("abcdef0123", "abcdef0123"),  # bare hex hash
+            ("0xCAFEBABE", "0xCAFEBABE"),  # 0x-prefixed
+            ("a/cafebabe", "cafebabe"),  # a/<hash>
+            ("did:key:zA/a/cafebabe", "cafebabe"),  # <DID>/a/<hash>
+        ],
+    )
+    def test_content_addressed(self, ref, expected):
+        assert asset_hash(ref) == expected
+
+    @pytest.mark.parametrize(
+        "ref",
+        ["w/my-assets/foo", "o/my-op", "did:key:zA/w/x", "not-a-hash"],
+    )
+    def test_not_content_addressed(self, ref):
+        assert asset_hash(ref) is None
 
 
 class TestDidWeb:

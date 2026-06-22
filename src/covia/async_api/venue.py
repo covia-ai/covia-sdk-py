@@ -12,6 +12,7 @@ from covia._async_client import AsyncCoviaHTTPClient
 from covia._sse import SSEEvent
 from covia._transport import TransportConfig
 from covia.agents import AsyncAgentManager
+from covia.asset import resolve_asset_id
 from covia.async_api.asset import AsyncAsset
 from covia.async_api.job import AsyncJob
 from covia.exceptions import CoviaError, CoviaTimeoutError
@@ -176,18 +177,26 @@ class AsyncVenue:
         """List assets registered at this venue."""
         return await self._client.list_assets(offset=offset, limit=limit)
 
-    async def get_asset(self, asset_id: str) -> AsyncAsset:
-        """Get an asset by its ID.
+    async def get_asset(self, ref: str) -> AsyncAsset:
+        """Get an asset by lattice address.
+
+        Async mirror of :meth:`Venue.get_asset <covia.venue.Venue.get_asset>` —
+        *ref* may be a content hash (``<hash>``, ``a/<hash>``,
+        ``<DID>/a/<hash>``) or a mutable lattice path the venue resolves
+        (``w/my-assets/foo``, ``o/my-op``, ``<DID>/w/...``).
 
         Raises:
-            ValueError: If the metadata hash does not match the requested ID.
+            ValueError: If a content-addressed *ref*'s hash does not match the
+                returned metadata.
+            AssetNotFoundError: If nothing resolves at *ref*.
         """
-        metadata, metadata_raw = await self._client.get_asset_metadata(asset_id)
-        if metadata_raw is not None:
-            computed = AsyncAsset.compute_id(metadata_raw)
-            if computed != asset_id:
-                raise ValueError(f"Asset ID mismatch: requested {asset_id!r} but metadata hashes to {computed!r}")
-        return AsyncAsset(metadata=metadata, id=asset_id, venue=self, metadata_raw=metadata_raw)
+        metadata, metadata_raw = await self._client.get_asset_metadata(ref)
+        return AsyncAsset(
+            metadata=metadata,
+            id=resolve_asset_id(ref, metadata_raw),
+            venue=self,
+            metadata_raw=metadata_raw,
+        )
 
     async def register(self, asset: AsyncAsset | dict[str, Any]) -> AsyncAsset:
         """Register a new asset at this venue.

@@ -120,6 +120,30 @@ class TestVenueAssets:
         assert '"name"' in asset.metadata_raw
         assert '"Test Asset"' in asset.metadata_raw
 
+    def test_get_asset_by_lattice_path(self, httpx_mock, venue):
+        # A mutable lattice path is resolved by the venue (covia#150) — sent as a
+        # plain GET; no client-side hash check, id is the resolved canonical hash.
+        raw = '{"name": "Foo", "operation": {}}'
+        httpx_mock.add_response(
+            url=f"{API_BASE}assets/w/my-assets/foo",
+            text=raw,
+            headers={"content-type": "application/json"},
+        )
+        asset = venue.get_asset("w/my-assets/foo")
+        assert asset.name == "Foo"
+        assert asset.is_operation
+        assert asset.id == Asset.compute_id(raw)
+
+    def test_get_asset_hash_mismatch_raises(self, httpx_mock, venue):
+        # Integrity check still applies for content-addressed refs.
+        httpx_mock.add_response(
+            url=f"{API_BASE}assets/{_ID_TEST_ASSET}",
+            text='{"name": "Tampered"}',
+            headers={"content-type": "application/json"},
+        )
+        with pytest.raises(ValueError, match="mismatch"):
+            venue.get_asset(_ID_TEST_ASSET)
+
     def test_register_with_dict(self, httpx_mock, venue):
         httpx_mock.add_response(
             url=f"{API_BASE}assets",

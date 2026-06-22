@@ -14,6 +14,7 @@ from covia.auth import Auth, BasicAuth, BearerAuth, Ed25519Auth, NoAuth
 from covia.did import (
     DIDURL,
     Namespace,
+    asset_hash,
     did_method,
     did_url,
     did_web_to_url,
@@ -106,6 +107,7 @@ __all__ = [
     "parse_did_url",
     "is_did",
     "did_method",
+    "asset_hash",
     "did_web_to_url",
     "url_to_did_web",
     # Models

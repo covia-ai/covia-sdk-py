@@ -14,7 +14,7 @@ from __future__ import annotations
 import hashlib
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
-from covia.did import Namespace, did_url
+from covia.did import Namespace, asset_hash, did_url
 
 if TYPE_CHECKING:
     from covia.job import Job
@@ -242,3 +242,25 @@ class Asset(_AssetBase["Venue"]):
         """
         venue, asset_id = self._require_registered("run")
         return venue.run(asset_id, input, timeout=timeout)
+
+
+def resolve_asset_id(ref: str, metadata_raw: str | None) -> str:
+    """Canonical asset id for an asset fetched by *ref* — shared by the sync and
+    async ``get_asset``.
+
+    For a content-addressed *ref* (hash, ``a/<hash>``, ``<DID>/a/<hash>``) the
+    returned metadata is verified against the requested hash; for a mutable
+    lattice path the venue's resolution is trusted and the canonical hash the
+    metadata resolved to is returned. Falls back to *ref* when the server
+    returned no raw metadata.
+
+    Raises:
+        ValueError: If a content-addressed *ref* doesn't match the metadata.
+    """
+    if metadata_raw is None:
+        return ref
+    computed = _AssetBase.compute_id(metadata_raw)
+    expected = asset_hash(ref)
+    if expected is not None and computed != expected:
+        raise ValueError(f"Asset ID mismatch: requested {ref!r} but metadata hashes to {computed!r}")
+    return computed

@@ -53,6 +53,18 @@ class TestAsyncJobWait:
             await job.wait(timeout=0.1)
 
 
+class TestAsyncVenueGetAsset:
+    async def test_get_asset_by_lattice_path(self, httpx_mock, async_venue):
+        raw = '{"name": "Foo"}'
+        httpx_mock.add_response(
+            url=f"{API_BASE}assets/w/my-assets/foo",
+            text=raw,
+            headers={"content-type": "application/json"},
+        )
+        asset = await async_venue.get_asset("w/my-assets/foo")
+        assert asset.name == "Foo"
+
+
 class TestAsyncAuthAudience:
     async def test_audience_resolved_from_venue_did(self, httpx_mock):
         # Async parity: aud is the venue's reported DID, resolved from did.json,

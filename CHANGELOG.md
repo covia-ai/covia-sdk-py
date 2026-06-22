@@ -41,6 +41,14 @@
 
 ### Changed
 
+- **`venue.get_asset(ref)` accepts a lattice address.** As well as a content
+  hash, `ref` may be `a/<hash>`, `<DID>/a/<hash>`, or a mutable lattice path
+  the venue resolves to an asset (`w/my-assets/foo`, `o/my-op`, `<DID>/w/...`)
+  — sent as a plain REST GET (not an operation). The hash-integrity check
+  applies only to content-addressed refs; for a path the resolved canonical
+  hash becomes the asset id. Sync and async share a `resolve_asset_id` helper,
+  and `covia.did.asset_hash(ref)` exposes the content-hash detection. (Path
+  resolution requires venue support — covia#150.)
 - **Auth audience is now the venue's reported DID.** `Ed25519Auth` (when no
   audience is pinned) gets its JWT `aud` from the venue's DID document
   (`/.well-known/did.json`), resolved once per connection and cached — instead

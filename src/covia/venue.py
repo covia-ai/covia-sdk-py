@@ -14,7 +14,7 @@ from covia._client import CoviaHTTPClient
 from covia._sse import SSEEvent
 from covia._transport import TransportConfig
 from covia.agents import AgentManager
-from covia.asset import Asset
+from covia.asset import Asset, resolve_asset_id
 from covia.exceptions import CoviaError, CoviaTimeoutError
 from covia.job import Job
 from covia.models import (
@@ -190,21 +190,32 @@ class Venue:
         """
         return self._client.list_assets(offset=offset, limit=limit)
 
-    def get_asset(self, asset_id: str) -> Asset:
-        """Get an asset by its ID.
+    def get_asset(self, ref: str) -> Asset:
+        """Get an asset by lattice address.
 
-        Args:
-            asset_id: Hex asset identifier.
+        *ref* may be a content hash (``<hash>``, ``a/<hash>``,
+        ``<DID>/a/<hash>``) or a mutable lattice path the venue resolves to an
+        asset (``w/my-assets/foo``, ``o/my-op``, ``<DID>/w/...``). Build
+        addresses with :func:`covia.did.did_url`. Cross-DID reads are
+        capability-gated — present a UCAN bearer (auth) for another DID's
+        namespace.
+
+        For a content-addressed *ref* the returned metadata is verified against
+        the hash; for a mutable path the venue's resolution is trusted and the
+        asset's id is the canonical hash it resolved to.
 
         Raises:
-            ValueError: If the metadata hash does not match the requested ID.
+            ValueError: If a content-addressed *ref*'s hash does not match the
+                returned metadata.
+            AssetNotFoundError: If nothing resolves at *ref*.
         """
-        metadata, metadata_raw = self._client.get_asset_metadata(asset_id)
-        if metadata_raw is not None:
-            computed = Asset.compute_id(metadata_raw)
-            if computed != asset_id:
-                raise ValueError(f"Asset ID mismatch: requested {asset_id!r} but metadata hashes to {computed!r}")
-        return Asset(metadata=metadata, id=asset_id, venue=self, metadata_raw=metadata_raw)
+        metadata, metadata_raw = self._client.get_asset_metadata(ref)
+        return Asset(
+            metadata=metadata,
+            id=resolve_asset_id(ref, metadata_raw),
+            venue=self,
+            metadata_raw=metadata_raw,
+        )
 
     def register(self, asset: Asset | dict[str, Any]) -> Asset:
         """Register a new asset at this venue.
