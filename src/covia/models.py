@@ -235,11 +235,16 @@ class AgentSuspendResult(BaseModel):
 
 
 class WorkspaceReadResult(BaseModel):
-    """Result of ``v/ops/covia/read``."""
+    """Result of ``v/ops/covia/read``.
+
+    0.3.0: ``exists`` reflects path *presence* — a stored null reads back as
+    ``exists=True, value=None`` (distinct from an absent path, ``exists=False``).
+    """
 
     exists: bool
     value: Any = None
     truncated: bool | None = None
+    type: str | None = None  # 0.3.0: Convex type name; included on a truncated read
     valueBytes: int | None = None  # 0.2.x: encoding size in bytes (always present)
     size: int | None = None  # deprecated (pre-0.2.x: bytes, only on truncation)
 
@@ -249,11 +254,12 @@ class WorkspaceReadResult(BaseModel):
 class WorkspaceWriteResult(BaseModel):
     """Result of ``v/ops/covia/write``.
 
-    Success is the job reaching ``COMPLETE`` (the SDK raises otherwise). 0.2.x
-    returns ``pathCreated`` only when the write built a new parent path,
-    otherwise an empty object.
+    Success is the job reaching ``COMPLETE`` (the SDK raises otherwise). 0.3.0
+    (#147) returns ``existed`` (was there already a value at the path — created
+    vs replaced); ``pathCreated`` is added only when a missing parent path was built.
     """
 
+    existed: bool | None = None  # 0.3.0 (#147): False = created, True = replaced
     pathCreated: bool | None = None  # 0.2.x: true iff a new parent path was built
     written: bool | None = None  # deprecated (pre-0.2.x: constant true)
 
@@ -261,10 +267,13 @@ class WorkspaceWriteResult(BaseModel):
 
 
 class WorkspaceDeleteResult(BaseModel):
-    """Result of ``v/ops/covia/delete``. 0.2.x returns an empty object; success
-    is the job status (the value is removed, parent hierarchy never pruned)."""
+    """Result of ``v/ops/covia/delete``.
 
-    deleted: bool | None = None  # deprecated (pre-0.2.x: constant true)
+    0.3.0 (#147): ``deleted`` is True if a value was present and removed, False for
+    an idempotent no-op. (Pre-0.3.0: a constant True, then an empty object.)
+    """
+
+    deleted: bool | None = None  # 0.3.0 (#147): True = removed, False = no-op
 
     model_config = {"extra": "allow"}
 
@@ -272,6 +281,8 @@ class WorkspaceDeleteResult(BaseModel):
 class WorkspaceAppendResult(BaseModel):
     """Result of ``v/ops/covia/append``."""
 
+    existed: bool | None = None  # 0.3.0 (#147): False = created, True = extended
+    index: int | None = None  # 0.3.0 (#147): position the element landed (newSize-1)
     newSize: int | None = None  # 0.2.x: vector element count after the append
     pathCreated: bool | None = None  # 0.2.x: true iff a new parent path was built
     appended: bool | None = None  # deprecated (pre-0.2.x: constant true)
@@ -284,11 +295,11 @@ class WorkspaceListResult(BaseModel):
 
     exists: bool
     type: str
-    totalSize: int | None = None  # 0.2.x: total entries in the collection
+    count: int | None = None  # 0.3.0: total entries (the single cardinality word)
     offset: int | None = None
     keys: list[str] | None = None
     values: list[Any] | None = None
-    count: int | None = None  # deprecated (pre-0.2.x name for totalSize)
+    totalSize: int | None = None  # deprecated (pre-0.3.0 name for count)
 
     model_config = {"extra": "allow"}
 
@@ -299,9 +310,9 @@ class WorkspaceSliceResult(BaseModel):
     exists: bool
     type: str | None = None
     values: list[Any] | None = None
-    totalSize: int | None = None  # 0.2.x: total entries in the collection
+    count: int | None = None  # 0.3.0: total entries (the single cardinality word)
     offset: int | None = None
-    count: int | None = None  # deprecated (pre-0.2.x name for totalSize)
+    totalSize: int | None = None  # deprecated (pre-0.3.0 name for count)
 
     model_config = {"extra": "allow"}
 

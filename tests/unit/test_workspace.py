@@ -189,5 +189,44 @@ def test_slice_0_2_x_absent_path(httpx_mock, venue):
     assert result.exists is False
 
 
+# --- 0.3.0 (#147) mutation outcome fields ---
+
+
+def test_write_existed_0_3_0(httpx_mock, venue):
+    # existed:false = a new value was created; true = an existing one replaced.
+    httpx_mock.add_response(url=f"{API_BASE}invoke", json=_complete({"existed": False}), status_code=201)
+    result = venue.workspace.write("/foo", 1)
+    assert result.existed is False
+
+
+def test_append_existed_index_0_3_0(httpx_mock, venue):
+    httpx_mock.add_response(
+        url=f"{API_BASE}invoke",
+        json=_complete({"existed": True, "index": 2, "newSize": 3}),
+        status_code=201,
+    )
+    result = venue.workspace.append("/foo/items", "x")
+    assert result.existed is True
+    assert result.index == 2
+    assert result.newSize == 3
+
+
+def test_delete_no_op_0_3_0(httpx_mock, venue):
+    httpx_mock.add_response(url=f"{API_BASE}invoke", json=_complete({"deleted": False}), status_code=201)
+    result = venue.workspace.delete("/missing")
+    assert result.deleted is False
+
+
+def test_read_truncated_type_0_3_0(httpx_mock, venue):
+    httpx_mock.add_response(
+        url=f"{API_BASE}invoke",
+        json=_complete({"exists": True, "value": None, "truncated": True, "type": "Map", "valueBytes": 999999}),
+        status_code=201,
+    )
+    result = venue.workspace.read("/big")
+    assert result.truncated is True
+    assert result.type == "Map"
+
+
 def test_lazy_manager_is_cached(venue):
     assert venue.workspace is venue.workspace
