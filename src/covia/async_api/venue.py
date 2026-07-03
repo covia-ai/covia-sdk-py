@@ -274,6 +274,10 @@ class AsyncVenue:
         await job.wait(timeout=timeout)
         return job.output
 
+    async def get_value(self, op: str, params: dict[str, Any]) -> dict[str, Any]:
+        """``GET /api/v1/values/{op}`` — a job-free lattice read (covia #177)."""
+        return await self._client.get_value(op, params)
+
     # ------------------------------------------------------------------
     # Jobs
     # ------------------------------------------------------------------

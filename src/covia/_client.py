@@ -173,6 +173,19 @@ class CoviaHTTPClient:
         return OperationInfo.model_validate(resp.json())
 
     # ------------------------------------------------------------------
+    # Values — job-free lattice reads (covia #177)
+    # ------------------------------------------------------------------
+
+    def get_value(self, op: str, params: dict[str, Any]) -> dict[str, Any]:
+        """``GET /api/v1/values/{op}`` — a synchronous, capability-checked lattice
+        read that creates **no Job** (unlike the invoke path). ``None`` params are
+        dropped from the query string."""
+        clean = {k: v for k, v in params.items() if v is not None}
+        resp = self._request("GET", f"values/{op}", params=clean)
+        result: dict[str, Any] = resp.json()
+        return result
+
+    # ------------------------------------------------------------------
     # Secrets
     # ------------------------------------------------------------------
 

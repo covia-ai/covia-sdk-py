@@ -317,6 +317,42 @@ class WorkspaceSliceResult(BaseModel):
     model_config = {"extra": "allow"}
 
 
+class WorkspaceInspectResult(BaseModel):
+    """Result of ``covia:inspect`` — a budget-bounded JSON5 render.
+
+    ``result`` is a rendered string for a single path, or a ``{path: string}``
+    map when multiple paths were inspected.
+    """
+
+    result: Any = None
+
+    model_config = {"extra": "allow"}
+
+
+class WorkspaceCountResult(BaseModel):
+    """Job-free tally (#177). ``exists`` = a countable collection is present at the
+    path (an absent path or a scalar → ``exists=False``, no ``count``; an empty or
+    too-deep collection → ``exists=True, count=0``)."""
+
+    exists: bool
+    count: int | None = None
+
+    model_config = {"extra": "allow"}
+
+
+class WorkspaceAggregateResult(BaseModel):
+    """Job-free grouped tally (#177)."""
+
+    exists: bool
+    count: int | None = None
+    # Present when ``group_by`` was supplied: each distinct field value → a metric
+    # object (``{count}`` today; numeric reductions add keys additively). An entry
+    # lacking the field groups under the ``"null"`` key. Σ(group counts) == count.
+    groups: dict[str, Any] | None = None
+
+    model_config = {"extra": "allow"}
+
+
 # ---------------------------------------------------------------------------
 # UCAN models (v/ops/ucan/*)
 # ---------------------------------------------------------------------------

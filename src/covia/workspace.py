@@ -44,28 +44,34 @@ from __future__ import annotations
 from typing import Any, Protocol
 
 from covia.models import (
+    WorkspaceAggregateResult,
     WorkspaceAppendResult,
+    WorkspaceCountResult,
     WorkspaceDeleteResult,
+    WorkspaceInspectResult,
     WorkspaceListResult,
     WorkspaceReadResult,
     WorkspaceSliceResult,
     WorkspaceWriteResult,
 )
 
-# Alias defined here (module scope) so `list` resolves to the builtin — the
+# Aliases defined here (module scope) so `list` resolves to the builtin — the
 # manager classes below define a `list()` method that would otherwise shadow it
 # in their own annotations.
 _Ucans = list[str] | None
+_Paths = str | list[str]
 
 
 class _SyncInvoker(Protocol):
     def run(self, operation: str, input: Any = None, *, timeout: float | None = None, ucans: _Ucans = None) -> Any: ...
+    def get_value(self, op: str, params: dict[str, Any]) -> dict[str, Any]: ...
 
 
 class _AsyncInvoker(Protocol):
     async def run(
         self, operation: str, input: Any = None, *, timeout: float | None = None, ucans: _Ucans = None
     ) -> Any: ...
+    async def get_value(self, op: str, params: dict[str, Any]) -> dict[str, Any]: ...
 
 
 def _drop_none(d: dict[str, Any]) -> dict[str, Any]:
@@ -95,8 +101,12 @@ class WorkspaceManager:
         ``exists=True, value=None, truncated=True, valueBytes=<bytes>``; pair
         with :meth:`list` or :meth:`slice` to page through large values.
         """
-        payload = _drop_none({"path": path, "maxSize": max_size})
-        return WorkspaceReadResult.model_validate(self._venue.run("v/ops/covia/read", payload, ucans=ucans))
+        params: dict[str, Any] = {"path": path, "maxSize": max_size}
+        if ucans:  # proof tokens ride only on the invoke transport
+            return WorkspaceReadResult.model_validate(
+                self._venue.run("v/ops/covia/read", _drop_none(params), ucans=ucans)
+            )
+        return WorkspaceReadResult.model_validate(self._venue.get_value("read", params))
 
     def write(self, path: str, value: Any, *, ucans: _Ucans = None) -> WorkspaceWriteResult:
         """Overwrite the value at *path*.
@@ -140,8 +150,12 @@ class WorkspaceManager:
         caller. The result's ``type`` field distinguishes maps (``keys``
         populated) from lists (``values`` populated).
         """
-        payload = _drop_none({"path": path, "limit": limit, "offset": offset})
-        return WorkspaceListResult.model_validate(self._venue.run("v/ops/covia/list", payload, ucans=ucans))
+        params: dict[str, Any] = {"path": path, "limit": limit, "offset": offset}
+        if ucans or path is None:  # the GET route requires a path; a root list uses invoke
+            return WorkspaceListResult.model_validate(
+                self._venue.run("v/ops/covia/list", _drop_none(params), ucans=ucans)
+            )
+        return WorkspaceListResult.model_validate(self._venue.get_value("list", params))
 
     def slice(
         self,
@@ -156,8 +170,70 @@ class WorkspaceManager:
         Use this to page through large collections that
         :meth:`read` would truncate.
         """
-        payload = _drop_none({"path": path, "offset": offset, "limit": limit})
-        return WorkspaceSliceResult.model_validate(self._venue.run("v/ops/covia/slice", payload, ucans=ucans))
+        params: dict[str, Any] = {"path": path, "offset": offset, "limit": limit}
+        if ucans:
+            return WorkspaceSliceResult.model_validate(
+                self._venue.run("v/ops/covia/slice", _drop_none(params), ucans=ucans)
+            )
+        return WorkspaceSliceResult.model_validate(self._venue.get_value("slice", params))
+
+    def inspect(
+        self,
+        paths: _Paths,
+        *,
+        budget: int | None = None,
+        compact: bool | None = None,
+        ucans: _Ucans = None,
+    ) -> WorkspaceInspectResult:
+        """Budget-bounded JSON5 render of *paths* — the primary discovery tool.
+
+        A single path is job-free (``GET /values/inspect``); passing a list of
+        paths (or a UCAN proof) uses the op path. ``budget`` caps the rendered
+        bytes; ``compact`` toggles single-line output.
+        """
+        if ucans or isinstance(paths, list):
+            payload = _drop_none({"paths": paths, "budget": budget, "compact": compact})
+            return WorkspaceInspectResult.model_validate(self._venue.run("v/ops/covia/inspect", payload, ucans=ucans))
+        return WorkspaceInspectResult.model_validate(
+            self._venue.get_value("inspect", {"path": paths, "budget": budget, "compact": compact})
+        )
+
+    def count(self, path: str, *, depth: int | None = None, ucans: _Ucans = None) -> WorkspaceCountResult:
+        """Count the entries *depth* levels below *path* — a job-free server-side
+        tally, so the caller never reads every record to learn "how many".
+
+        ``depth`` is the number of ``get``-steps below *path* (default 1 = direct
+        children); records nested at ``w/x/<bucket>/<record>`` are counted with
+        ``depth=2``. An absent path or a scalar returns ``exists=False``.
+        """
+        params: dict[str, Any] = {"path": path, "depth": depth}
+        if ucans:
+            return WorkspaceCountResult.model_validate(
+                self._venue.run("v/ops/covia/aggregate", _drop_none(params), ucans=ucans)
+            )
+        return WorkspaceCountResult.model_validate(self._venue.get_value("count", params))
+
+    def aggregate(
+        self,
+        path: str,
+        *,
+        depth: int | None = None,
+        group_by: str | None = None,
+        ucans: _Ucans = None,
+    ) -> WorkspaceAggregateResult:
+        """Count entries *depth* levels below *path*, optionally partitioned by a
+        field — the job-free, authoritative alternative to counting client-side.
+
+        ``group_by`` names the field whose value forms each group key (may be a
+        relative path, ``foo/bar``); an entry missing it groups under ``"null"``.
+        Σ(group counts) equals the top-level ``count``.
+        """
+        params: dict[str, Any] = {"path": path, "depth": depth, "groupBy": group_by}
+        if ucans:
+            return WorkspaceAggregateResult.model_validate(
+                self._venue.run("v/ops/covia/aggregate", _drop_none(params), ucans=ucans)
+            )
+        return WorkspaceAggregateResult.model_validate(self._venue.get_value("aggregate", params))
 
 
 class AsyncWorkspaceManager:
@@ -167,8 +243,12 @@ class AsyncWorkspaceManager:
         self._venue = venue
 
     async def read(self, path: str, *, max_size: int | None = None, ucans: _Ucans = None) -> WorkspaceReadResult:
-        payload = _drop_none({"path": path, "maxSize": max_size})
-        return WorkspaceReadResult.model_validate(await self._venue.run("v/ops/covia/read", payload, ucans=ucans))
+        params: dict[str, Any] = {"path": path, "maxSize": max_size}
+        if ucans:
+            return WorkspaceReadResult.model_validate(
+                await self._venue.run("v/ops/covia/read", _drop_none(params), ucans=ucans)
+            )
+        return WorkspaceReadResult.model_validate(await self._venue.get_value("read", params))
 
     async def write(self, path: str, value: Any, *, ucans: _Ucans = None) -> WorkspaceWriteResult:
         return WorkspaceWriteResult.model_validate(
@@ -193,8 +273,12 @@ class AsyncWorkspaceManager:
         offset: int | None = None,
         ucans: _Ucans = None,
     ) -> WorkspaceListResult:
-        payload = _drop_none({"path": path, "limit": limit, "offset": offset})
-        return WorkspaceListResult.model_validate(await self._venue.run("v/ops/covia/list", payload, ucans=ucans))
+        params: dict[str, Any] = {"path": path, "limit": limit, "offset": offset}
+        if ucans or path is None:
+            return WorkspaceListResult.model_validate(
+                await self._venue.run("v/ops/covia/list", _drop_none(params), ucans=ucans)
+            )
+        return WorkspaceListResult.model_validate(await self._venue.get_value("list", params))
 
     async def slice(
         self,
@@ -204,5 +288,49 @@ class AsyncWorkspaceManager:
         limit: int | None = None,
         ucans: _Ucans = None,
     ) -> WorkspaceSliceResult:
-        payload = _drop_none({"path": path, "offset": offset, "limit": limit})
-        return WorkspaceSliceResult.model_validate(await self._venue.run("v/ops/covia/slice", payload, ucans=ucans))
+        params: dict[str, Any] = {"path": path, "offset": offset, "limit": limit}
+        if ucans:
+            return WorkspaceSliceResult.model_validate(
+                await self._venue.run("v/ops/covia/slice", _drop_none(params), ucans=ucans)
+            )
+        return WorkspaceSliceResult.model_validate(await self._venue.get_value("slice", params))
+
+    async def inspect(
+        self,
+        paths: _Paths,
+        *,
+        budget: int | None = None,
+        compact: bool | None = None,
+        ucans: _Ucans = None,
+    ) -> WorkspaceInspectResult:
+        if ucans or isinstance(paths, list):
+            payload = _drop_none({"paths": paths, "budget": budget, "compact": compact})
+            return WorkspaceInspectResult.model_validate(
+                await self._venue.run("v/ops/covia/inspect", payload, ucans=ucans)
+            )
+        return WorkspaceInspectResult.model_validate(
+            await self._venue.get_value("inspect", {"path": paths, "budget": budget, "compact": compact})
+        )
+
+    async def count(self, path: str, *, depth: int | None = None, ucans: _Ucans = None) -> WorkspaceCountResult:
+        params: dict[str, Any] = {"path": path, "depth": depth}
+        if ucans:
+            return WorkspaceCountResult.model_validate(
+                await self._venue.run("v/ops/covia/aggregate", _drop_none(params), ucans=ucans)
+            )
+        return WorkspaceCountResult.model_validate(await self._venue.get_value("count", params))
+
+    async def aggregate(
+        self,
+        path: str,
+        *,
+        depth: int | None = None,
+        group_by: str | None = None,
+        ucans: _Ucans = None,
+    ) -> WorkspaceAggregateResult:
+        params: dict[str, Any] = {"path": path, "depth": depth, "groupBy": group_by}
+        if ucans:
+            return WorkspaceAggregateResult.model_validate(
+                await self._venue.run("v/ops/covia/aggregate", _drop_none(params), ucans=ucans)
+            )
+        return WorkspaceAggregateResult.model_validate(await self._venue.get_value("aggregate", params))
