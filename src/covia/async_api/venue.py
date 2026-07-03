@@ -70,7 +70,11 @@ class AsyncVenue:
 
     @property
     def workspace(self) -> AsyncWorkspaceManager:
-        """Typed accessor for ``v/ops/covia/*`` workspace operations."""
+        """Typed accessor for ``v/ops/covia/*`` lattice operations.
+
+        Name is provisional — see
+        :attr:`Venue.workspace <covia.venue.Venue.workspace>`.
+        """
         if self._workspace is None:
             self._workspace = AsyncWorkspaceManager(self)
         return self._workspace
@@ -274,8 +278,9 @@ class AsyncVenue:
         await job.wait(timeout=timeout)
         return job.output
 
-    async def get_value(self, op: str, params: dict[str, Any]) -> dict[str, Any]:
-        """``GET /api/v1/values/{op}`` — a job-free lattice read (covia #177)."""
+    async def _get_value(self, op: str, params: dict[str, Any]) -> dict[str, Any]:
+        """Internal job-free read transport — see
+        :meth:`Venue._get_value <covia.venue.Venue._get_value>`."""
         return await self._client.get_value(op, params)
 
     # ------------------------------------------------------------------
@@ -310,10 +315,6 @@ class AsyncVenue:
     async def list_secrets(self) -> list[str]:
         """List secret names stored at this venue."""
         return await self._client.list_secrets()
-
-    async def put_secret(self, name: str, value: str) -> None:
-        """Store (or replace) a secret value."""
-        await self._client.put_secret(name, value)
 
     async def delete_secret(self, name: str) -> None:
         """Delete a stored secret."""

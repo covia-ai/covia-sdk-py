@@ -41,6 +41,22 @@
 
 ### Changed
 
+- **`venue.secrets.put()` removed — use `venue.secrets.set()`.** The two did
+  the identical thing: the venue's REST `PUT /secrets/{name}` is just a thin
+  wrapper over the `v/ops/secret/set` op that `set` already calls. The SDK now
+  exposes a single store verb, and `set` returns a typed `SecretSetResult`
+  (`put` discarded the result and returned `None`). The raw `venue.put_secret()`
+  helper is removed too; `venue.list_secrets()` / `venue.delete_secret()`
+  remain. **Breaking:** migrate `venue.secrets.put(n, v)` →
+  `venue.secrets.set(n, v)`.
+- **Result models target the 0.3.0 venue only.** Dropped the pre-0.3.0 straddle
+  fields the 0.3.0 venue no longer sends: `WorkspaceReadResult.size`,
+  `WorkspaceWriteResult.written`, `WorkspaceAppendResult.appended`, and
+  `totalSize` on list/slice (use `count`). `WorkspaceListResult.values` is gone
+  too — `list` returns `keys` (page elements with `slice`).
+  `WorkspaceInspectResult.result` is now typed `str | dict[str, str]`, and
+  `WorkspaceAggregateResult.groups` is `dict[str, GroupCount]` (was untyped) —
+  access `result.groups[key].count`.
 - **`venue.get_asset(ref)` accepts a lattice address.** As well as a content
   hash, `ref` may be `a/<hash>`, `<DID>/a/<hash>`, or a mutable lattice path
   the venue resolves to an asset (`w/my-assets/foo`, `o/my-op`, `<DID>/w/...`)

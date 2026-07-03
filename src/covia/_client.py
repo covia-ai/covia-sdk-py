@@ -196,10 +196,6 @@ class CoviaHTTPClient:
         items: list[str] = body.get("items", [])
         return items
 
-    def put_secret(self, name: str, value: str) -> None:
-        """``PUT /api/v1/secrets/{name}`` — store a secret value."""
-        self._request("PUT", f"secrets/{name}", json={"value": value})
-
     def delete_secret(self, name: str) -> None:
         """``DELETE /api/v1/secrets/{name}`` — delete a secret."""
         self._request("DELETE", f"secrets/{name}")

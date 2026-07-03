@@ -64,14 +64,14 @@ _Paths = str | list[str]
 
 class _SyncInvoker(Protocol):
     def run(self, operation: str, input: Any = None, *, timeout: float | None = None, ucans: _Ucans = None) -> Any: ...
-    def get_value(self, op: str, params: dict[str, Any]) -> dict[str, Any]: ...
+    def _get_value(self, op: str, params: dict[str, Any]) -> dict[str, Any]: ...
 
 
 class _AsyncInvoker(Protocol):
     async def run(
         self, operation: str, input: Any = None, *, timeout: float | None = None, ucans: _Ucans = None
     ) -> Any: ...
-    async def get_value(self, op: str, params: dict[str, Any]) -> dict[str, Any]: ...
+    async def _get_value(self, op: str, params: dict[str, Any]) -> dict[str, Any]: ...
 
 
 def _drop_none(d: dict[str, Any]) -> dict[str, Any]:
@@ -83,6 +83,11 @@ class WorkspaceManager:
 
     Do not instantiate directly — use ``venue.workspace``. See the module
     docstring for namespace semantics.
+
+    The ``workspace`` name is provisional: this accessor spans *all* covia
+    namespaces (``/w/``, ``/o/``, ``/a/``, ``/g/`` …), not just ``/w/``, so a
+    future release may rename it or add an alias (most likely ``venue.values``).
+    ``venue.workspace`` will keep working either way.
     """
 
     def __init__(self, venue: _SyncInvoker) -> None:
@@ -106,7 +111,7 @@ class WorkspaceManager:
             return WorkspaceReadResult.model_validate(
                 self._venue.run("v/ops/covia/read", _drop_none(params), ucans=ucans)
             )
-        return WorkspaceReadResult.model_validate(self._venue.get_value("read", params))
+        return WorkspaceReadResult.model_validate(self._venue._get_value("read", params))
 
     def write(self, path: str, value: Any, *, ucans: _Ucans = None) -> WorkspaceWriteResult:
         """Overwrite the value at *path*.
@@ -155,7 +160,7 @@ class WorkspaceManager:
             return WorkspaceListResult.model_validate(
                 self._venue.run("v/ops/covia/list", _drop_none(params), ucans=ucans)
             )
-        return WorkspaceListResult.model_validate(self._venue.get_value("list", params))
+        return WorkspaceListResult.model_validate(self._venue._get_value("list", params))
 
     def slice(
         self,
@@ -175,7 +180,7 @@ class WorkspaceManager:
             return WorkspaceSliceResult.model_validate(
                 self._venue.run("v/ops/covia/slice", _drop_none(params), ucans=ucans)
             )
-        return WorkspaceSliceResult.model_validate(self._venue.get_value("slice", params))
+        return WorkspaceSliceResult.model_validate(self._venue._get_value("slice", params))
 
     def inspect(
         self,
@@ -195,7 +200,7 @@ class WorkspaceManager:
             payload = _drop_none({"paths": paths, "budget": budget, "compact": compact})
             return WorkspaceInspectResult.model_validate(self._venue.run("v/ops/covia/inspect", payload, ucans=ucans))
         return WorkspaceInspectResult.model_validate(
-            self._venue.get_value("inspect", {"path": paths, "budget": budget, "compact": compact})
+            self._venue._get_value("inspect", {"path": paths, "budget": budget, "compact": compact})
         )
 
     def count(self, path: str, *, depth: int | None = None, ucans: _Ucans = None) -> WorkspaceCountResult:
@@ -211,7 +216,7 @@ class WorkspaceManager:
             return WorkspaceCountResult.model_validate(
                 self._venue.run("v/ops/covia/aggregate", _drop_none(params), ucans=ucans)
             )
-        return WorkspaceCountResult.model_validate(self._venue.get_value("count", params))
+        return WorkspaceCountResult.model_validate(self._venue._get_value("count", params))
 
     def aggregate(
         self,
@@ -233,7 +238,7 @@ class WorkspaceManager:
             return WorkspaceAggregateResult.model_validate(
                 self._venue.run("v/ops/covia/aggregate", _drop_none(params), ucans=ucans)
             )
-        return WorkspaceAggregateResult.model_validate(self._venue.get_value("aggregate", params))
+        return WorkspaceAggregateResult.model_validate(self._venue._get_value("aggregate", params))
 
 
 class AsyncWorkspaceManager:
@@ -248,7 +253,7 @@ class AsyncWorkspaceManager:
             return WorkspaceReadResult.model_validate(
                 await self._venue.run("v/ops/covia/read", _drop_none(params), ucans=ucans)
             )
-        return WorkspaceReadResult.model_validate(await self._venue.get_value("read", params))
+        return WorkspaceReadResult.model_validate(await self._venue._get_value("read", params))
 
     async def write(self, path: str, value: Any, *, ucans: _Ucans = None) -> WorkspaceWriteResult:
         return WorkspaceWriteResult.model_validate(
@@ -278,7 +283,7 @@ class AsyncWorkspaceManager:
             return WorkspaceListResult.model_validate(
                 await self._venue.run("v/ops/covia/list", _drop_none(params), ucans=ucans)
             )
-        return WorkspaceListResult.model_validate(await self._venue.get_value("list", params))
+        return WorkspaceListResult.model_validate(await self._venue._get_value("list", params))
 
     async def slice(
         self,
@@ -293,7 +298,7 @@ class AsyncWorkspaceManager:
             return WorkspaceSliceResult.model_validate(
                 await self._venue.run("v/ops/covia/slice", _drop_none(params), ucans=ucans)
             )
-        return WorkspaceSliceResult.model_validate(await self._venue.get_value("slice", params))
+        return WorkspaceSliceResult.model_validate(await self._venue._get_value("slice", params))
 
     async def inspect(
         self,
@@ -309,7 +314,7 @@ class AsyncWorkspaceManager:
                 await self._venue.run("v/ops/covia/inspect", payload, ucans=ucans)
             )
         return WorkspaceInspectResult.model_validate(
-            await self._venue.get_value("inspect", {"path": paths, "budget": budget, "compact": compact})
+            await self._venue._get_value("inspect", {"path": paths, "budget": budget, "compact": compact})
         )
 
     async def count(self, path: str, *, depth: int | None = None, ucans: _Ucans = None) -> WorkspaceCountResult:
@@ -318,7 +323,7 @@ class AsyncWorkspaceManager:
             return WorkspaceCountResult.model_validate(
                 await self._venue.run("v/ops/covia/aggregate", _drop_none(params), ucans=ucans)
             )
-        return WorkspaceCountResult.model_validate(await self._venue.get_value("count", params))
+        return WorkspaceCountResult.model_validate(await self._venue._get_value("count", params))
 
     async def aggregate(
         self,
@@ -333,4 +338,4 @@ class AsyncWorkspaceManager:
             return WorkspaceAggregateResult.model_validate(
                 await self._venue.run("v/ops/covia/aggregate", _drop_none(params), ucans=ucans)
             )
-        return WorkspaceAggregateResult.model_validate(await self._venue.get_value("aggregate", params))
+        return WorkspaceAggregateResult.model_validate(await self._venue._get_value("aggregate", params))

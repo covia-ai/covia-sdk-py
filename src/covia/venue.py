@@ -74,7 +74,12 @@ class Venue:
 
     @property
     def workspace(self) -> WorkspaceManager:
-        """Typed accessor for ``v/ops/covia/*`` workspace operations."""
+        """Typed accessor for ``v/ops/covia/*`` lattice operations.
+
+        Name is provisional — the accessor spans all covia namespaces, not
+        just ``/w/``, so it may later gain a ``values`` alias (see
+        :class:`~covia.workspace.WorkspaceManager`).
+        """
         if self._workspace is None:
             self._workspace = WorkspaceManager(self)
         return self._workspace
@@ -325,11 +330,13 @@ class Venue:
         job.wait(timeout=timeout)
         return job.output
 
-    def get_value(self, op: str, params: dict[str, Any]) -> dict[str, Any]:
-        """``GET /api/v1/values/{op}`` — a job-free lattice read (covia #177).
+    def _get_value(self, op: str, params: dict[str, Any]) -> dict[str, Any]:
+        """Internal: ``GET /api/v1/values/{op}`` — the job-free read transport
+        (covia #177) behind :attr:`workspace`'s ``read``/``list``/``slice``/
+        ``inspect``/``count``/``aggregate``. Creates no Job.
 
-        Used by :attr:`workspace` for ``read``/``list``/``slice``/``inspect``/
-        ``count``/``aggregate``; creates no Job.
+        Not public API: it dispatches on a stringly-typed *op*. Use the typed
+        ``venue.workspace.*`` methods instead.
         """
         return self._client.get_value(op, params)
 
@@ -384,10 +391,6 @@ class Venue:
     def list_secrets(self) -> list[str]:
         """List secret names stored at this venue."""
         return self._client.list_secrets()
-
-    def put_secret(self, name: str, value: str) -> None:
-        """Store (or replace) a secret value."""
-        self._client.put_secret(name, value)
 
     def delete_secret(self, name: str) -> None:
         """Delete a stored secret."""

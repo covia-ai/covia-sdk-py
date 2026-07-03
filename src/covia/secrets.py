@@ -6,13 +6,15 @@ require a UCAN proof, even for the owner, because operations that
 reference secrets by name (``s/NAME``) resolve them through the same
 capability check.
 
-The manager exposes two surfaces:
+The manager exposes four methods:
 
-- **REST** (``list``, ``put``, ``delete``) — manage the owner's own
-  secrets via ``/api/v1/secrets/*``. Authenticated as the caller.
-- **Operations** (``set``, ``extract``) — the ``v/ops/secret/*`` ops.
-  ``set`` stores under the caller's ``/s/``; ``extract`` resolves a
-  secret by name and requires a UCAN capability grant on the target.
+- ``set`` / ``extract`` — the ``v/ops/secret/*`` ops. ``set`` stores a
+  secret under the caller's ``/s/`` and returns a :class:`SecretSetResult`.
+  The venue's REST ``PUT /secrets/{name}`` endpoint is just a thin wrapper
+  over this same op, so the SDK offers one store verb, not two. ``extract``
+  resolves a secret by name and requires a UCAN capability grant on the target.
+- ``list`` / ``delete`` — manage the owner's own secrets via
+  ``/api/v1/secrets/*`` (no op equivalent). Authenticated as the caller.
 """
 
 from __future__ import annotations
@@ -29,7 +31,6 @@ _Ucans = list[str] | None
 class _SyncSecretVenue(Protocol):
     def run(self, operation: str, input: Any = None, *, timeout: float | None = None, ucans: _Ucans = None) -> Any: ...
     def list_secrets(self) -> list[str]: ...
-    def put_secret(self, name: str, value: str) -> None: ...
     def delete_secret(self, name: str) -> None: ...
 
 
@@ -38,7 +39,6 @@ class _AsyncSecretVenue(Protocol):
         self, operation: str, input: Any = None, *, timeout: float | None = None, ucans: _Ucans = None
     ) -> Any: ...
     async def list_secrets(self) -> list[str]: ...
-    async def put_secret(self, name: str, value: str) -> None: ...
     async def delete_secret(self, name: str) -> None: ...
 
 
@@ -54,10 +54,6 @@ class SecretManager:
     def list(self) -> list[str]:
         """List the names of secrets stored at this venue."""
         return self._venue.list_secrets()
-
-    def put(self, name: str, value: str) -> None:
-        """Store (or replace) a secret via the REST API."""
-        self._venue.put_secret(name, value)
 
     def delete(self, name: str) -> None:
         """Delete a stored secret."""
@@ -85,9 +81,6 @@ class AsyncSecretManager:
 
     async def list(self) -> list[str]:
         return await self._venue.list_secrets()
-
-    async def put(self, name: str, value: str) -> None:
-        await self._venue.put_secret(name, value)
 
     async def delete(self, name: str) -> None:
         await self._venue.delete_secret(name)

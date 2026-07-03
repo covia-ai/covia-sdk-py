@@ -19,19 +19,6 @@ def test_list(httpx_mock, venue):
     assert venue.secrets.list() == ["API_KEY", "DB_PASSWORD"]
 
 
-def test_put(httpx_mock, venue):
-    httpx_mock.add_response(
-        url=f"{API_BASE}secrets/API_KEY",
-        method="PUT",
-        text="",
-    )
-    venue.secrets.put("API_KEY", "s3cret")
-    req = httpx_mock.get_requests()[-1]
-    import json
-
-    assert json.loads(req.content) == {"value": "s3cret"}
-
-
 def test_delete(httpx_mock, venue):
     httpx_mock.add_response(
         url=f"{API_BASE}secrets/API_KEY",

@@ -48,6 +48,7 @@ from covia.models import (
     AgentTriggerResult,
     AssetList,
     DIDDocument,
+    GroupCount,
     InvokeRequest,
     JobData,
     MCPDiscovery,
@@ -143,6 +144,7 @@ __all__ = [
     "WorkspaceInspectResult",
     "WorkspaceCountResult",
     "WorkspaceAggregateResult",
+    "GroupCount",
     # UCAN + Secret models
     "UCANAttenuation",
     "UCANIssueResult",

@@ -23,6 +23,13 @@ class InvokeRequest(BaseModel):
 # ---------------------------------------------------------------------------
 # Response models
 # ---------------------------------------------------------------------------
+#
+# Response-model field names mirror the wire JSON verbatim (camelCase) — the
+# same spelling the REST API, the raw payload, and the TypeScript SDK use, so
+# there is one name per concept across the whole ecosystem. (Method *arguments*
+# are snake_case Python kwargs the managers translate; only the response surface
+# follows the wire.) ``extra="allow"`` keeps unmodelled fields accessible under
+# their wire names too, so the convention holds for the long tail.
 
 
 class VenueStatus(BaseModel):
@@ -227,11 +234,11 @@ class AgentSuspendResult(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-# Result models tolerate both the pre-0.2.x and 0.2.x venue output shapes.
-# 0.2.x dropped the tautological CRUD flags and renamed read/list/slice fields
-# (covia#132); every formerly-required field that changed is now optional, and
-# the new field names are added, so one SDK build talks to venues either side of
-# the change. ``extra="allow"`` covers anything else.
+# Result models target the 0.3.0 venue response shapes. Fields the venue only
+# sometimes returns (e.g. ``pathCreated``, ``truncated``) are optional, and
+# ``extra="allow"`` tolerates any additional/future fields under their wire
+# names. The pre-0.3.0 straddle fields (``size``/``written``/``appended``/
+# ``totalSize``) were dropped when the SDK adopted a 0.3.0-only floor.
 
 
 class WorkspaceReadResult(BaseModel):
@@ -245,8 +252,7 @@ class WorkspaceReadResult(BaseModel):
     value: Any = None
     truncated: bool | None = None
     type: str | None = None  # 0.3.0: Convex type name; included on a truncated read
-    valueBytes: int | None = None  # 0.2.x: encoding size in bytes (always present)
-    size: int | None = None  # deprecated (pre-0.2.x: bytes, only on truncation)
+    valueBytes: int | None = None  # 0.3.0: encoded size in bytes (always present)
 
     model_config = {"extra": "allow"}
 
@@ -260,8 +266,7 @@ class WorkspaceWriteResult(BaseModel):
     """
 
     existed: bool | None = None  # 0.3.0 (#147): False = created, True = replaced
-    pathCreated: bool | None = None  # 0.2.x: true iff a new parent path was built
-    written: bool | None = None  # deprecated (pre-0.2.x: constant true)
+    pathCreated: bool | None = None  # 0.3.0: true iff a new parent path was built
 
     model_config = {"extra": "allow"}
 
@@ -283,23 +288,24 @@ class WorkspaceAppendResult(BaseModel):
 
     existed: bool | None = None  # 0.3.0 (#147): False = created, True = extended
     index: int | None = None  # 0.3.0 (#147): position the element landed (newSize-1)
-    newSize: int | None = None  # 0.2.x: vector element count after the append
-    pathCreated: bool | None = None  # 0.2.x: true iff a new parent path was built
-    appended: bool | None = None  # deprecated (pre-0.2.x: constant true)
+    newSize: int | None = None  # 0.3.0: vector element count after the append
+    pathCreated: bool | None = None  # 0.3.0: true iff a new parent path was built
 
     model_config = {"extra": "allow"}
 
 
 class WorkspaceListResult(BaseModel):
-    """Result of ``v/ops/covia/list``."""
+    """Result of ``v/ops/covia/list`` — the direct children of a node.
+
+    A map lists its ``keys``; sets and vectors report only ``type`` + ``count``
+    (page their elements with :class:`WorkspaceSliceResult`).
+    """
 
     exists: bool
     type: str
-    count: int | None = None  # 0.3.0: total entries (the single cardinality word)
+    count: int | None = None  # total entries (the single cardinality word)
     offset: int | None = None
-    keys: list[str] | None = None
-    values: list[Any] | None = None
-    totalSize: int | None = None  # deprecated (pre-0.3.0 name for count)
+    keys: list[str] | None = None  # populated for maps; None for sets/vectors/scalars
 
     model_config = {"extra": "allow"}
 
@@ -310,9 +316,8 @@ class WorkspaceSliceResult(BaseModel):
     exists: bool
     type: str | None = None
     values: list[Any] | None = None
-    count: int | None = None  # 0.3.0: total entries (the single cardinality word)
+    count: int | None = None  # total entries (the single cardinality word)
     offset: int | None = None
-    totalSize: int | None = None  # deprecated (pre-0.3.0 name for count)
 
     model_config = {"extra": "allow"}
 
@@ -324,7 +329,7 @@ class WorkspaceInspectResult(BaseModel):
     map when multiple paths were inspected.
     """
 
-    result: Any = None
+    result: str | dict[str, str] | None = None
 
     model_config = {"extra": "allow"}
 
@@ -340,15 +345,27 @@ class WorkspaceCountResult(BaseModel):
     model_config = {"extra": "allow"}
 
 
+class GroupCount(BaseModel):
+    """One group's metrics in :attr:`WorkspaceAggregateResult.groups`.
+
+    ``count`` today; numeric reductions (``sum``/``min``/``max``) will add keys
+    additively, hence ``extra="allow"``.
+    """
+
+    count: int | None = None
+
+    model_config = {"extra": "allow"}
+
+
 class WorkspaceAggregateResult(BaseModel):
     """Job-free grouped tally (#177)."""
 
     exists: bool
     count: int | None = None
-    # Present when ``group_by`` was supplied: each distinct field value → a metric
-    # object (``{count}`` today; numeric reductions add keys additively). An entry
-    # lacking the field groups under the ``"null"`` key. Σ(group counts) == count.
-    groups: dict[str, Any] | None = None
+    # Present when ``group_by`` was supplied: each distinct field value → a
+    # :class:`GroupCount`. An entry lacking the field groups under the ``"null"``
+    # key. Σ(group counts) == count.
+    groups: dict[str, GroupCount] | None = None
 
     model_config = {"extra": "allow"}
 

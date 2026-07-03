@@ -87,7 +87,7 @@ src/covia/
 Managers are lazy properties on `Venue` / `AsyncVenue` — first access constructs, subsequent accesses return the cached instance. Each manager delegates to the venue via:
 
 - `venue.run(op, input)` — for ops that go through `/api/v1/invoke` (agent, workspace, ucan, secret set/extract)
-- `venue.list_secrets()` / `put_secret()` / `delete_secret()` — for the REST secret endpoints
+- `venue.list_secrets()` / `delete_secret()` — for the REST secret endpoints (storing goes through `venue.secrets.set`)
 
 Payloads sent on the wire are camelCase to match the Covia REST API; Python args are snake_case and managers handle the translation.
 

@@ -51,7 +51,7 @@ def test_read_own_namespace_is_job_free(httpx_mock, venue):
 
 
 def test_read(httpx_mock, venue):
-    _get(httpx_mock, {"exists": True, "value": {"x": 1}, "size": 42})
+    _get(httpx_mock, {"exists": True, "value": {"x": 1}, "valueBytes": 42})
     result = venue.workspace.read("/foo/bar")
     assert result.exists is True
     assert result.value == {"x": 1}
@@ -80,11 +80,11 @@ def test_read_with_ucans_uses_invoke(httpx_mock, venue):
 def test_write(httpx_mock, venue):
     httpx_mock.add_response(
         url=f"{API_BASE}invoke",
-        json=_complete({"written": True}),
+        json=_complete({"existed": True}),
         status_code=201,
     )
     result = venue.workspace.write("/foo", {"y": 2})
-    assert result.written is True
+    assert result.existed is True
 
 
 def test_delete(httpx_mock, venue):
@@ -100,11 +100,12 @@ def test_delete(httpx_mock, venue):
 def test_append(httpx_mock, venue):
     httpx_mock.add_response(
         url=f"{API_BASE}invoke",
-        json=_complete({"appended": True}),
+        json=_complete({"existed": False, "newSize": 1}),
         status_code=201,
     )
     result = venue.workspace.append("/foo", "new-entry")
-    assert result.appended is True
+    assert result.existed is False
+    assert result.newSize == 1
 
 
 def test_list(httpx_mock, venue):
@@ -134,8 +135,9 @@ def test_slice(httpx_mock, venue):
     assert "/api/v1/values/slice" in str(httpx_mock.get_requests()[-1].url)
 
 
-# --- 0.2.x venue output shapes (covia#132): models must parse these without
-#     raising, and expose the new fields. The tests above cover pre-0.2.x. ---
+# --- Response-shape tolerance: the 0.3.0 venue omits optional fields in some
+#     cases (empty mutation results, absent paths, un-truncated reads); the
+#     models must parse those without raising. ---
 
 
 def test_read_0_2_x_value_bytes(httpx_mock, venue):
@@ -174,21 +176,6 @@ def test_append_0_2_x_new_size(httpx_mock, venue):
     result = venue.workspace.append("/foo/items", "x")
     assert result.newSize == 3
     assert result.pathCreated is True
-
-
-def test_list_0_2_x_total_size(httpx_mock, venue):
-    # A pre-0.3.0 venue still sends `totalSize` over the GET route; must parse.
-    _get(httpx_mock, {"exists": True, "type": "Map", "totalSize": 2, "offset": 0, "keys": ["a", "b"]})
-    result = venue.workspace.list("/foo")
-    assert result.totalSize == 2
-    assert result.keys == ["a", "b"]
-
-
-def test_slice_0_2_x_total_size(httpx_mock, venue):
-    _get(httpx_mock, {"exists": True, "type": "Vector", "values": [1, 2], "totalSize": 2, "offset": 0})
-    result = venue.workspace.slice("/foo", offset=0, limit=2)
-    assert result.values == [1, 2]
-    assert result.totalSize == 2
 
 
 def test_slice_0_2_x_absent_path(httpx_mock, venue):
@@ -251,7 +238,9 @@ def test_aggregate_group_by(httpx_mock, venue):
     _get(httpx_mock, {"exists": True, "count": 644, "groups": {"nhs": {"count": 596}, "letters": {"count": 48}}})
     result = venue.workspace.aggregate("/w/orders", depth=2, group_by="source")
     assert result.count == 644
-    assert result.groups == {"nhs": {"count": 596}, "letters": {"count": 48}}
+    assert result.groups is not None
+    assert result.groups["nhs"].count == 596
+    assert result.groups["letters"].count == 48
     req = httpx_mock.get_requests()[-1]
     assert "/api/v1/values/aggregate" in str(req.url)
     assert req.url.params["groupBy"] == "source"
