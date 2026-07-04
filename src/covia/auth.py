@@ -53,7 +53,8 @@ class Auth(ABC):
         Default ``False``. Providers that bind tokens to the venue's identity
         (e.g. :class:`Ed25519Auth` with no explicit audience) override this to
         ``True``; the transport then resolves the venue's reported DID (from
-        ``/.well-known/did.json``) once and supplies it on every call.
+        ``GET /api/v1/status``, falling back to ``/.well-known/did.json``) once
+        and supplies it on every call.
         """
         return False
 
@@ -285,7 +286,8 @@ class Ed25519Auth(Auth):
         reported DID.
 
         When ``None`` (the default), the transport resolves the venue's DID
-        from ``/.well-known/did.json`` and supplies it as the audience — so
+        from ``GET /api/v1/status`` (falling back to the DID document) and
+        supplies it as the audience — so
         the token is bound to the venue's actual identity rather than however
         you happened to address it. Set this only to override that.
         """

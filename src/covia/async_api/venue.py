@@ -47,8 +47,6 @@ class AsyncVenue:
     def __init__(self, config: TransportConfig) -> None:
         self._client = AsyncCoviaHTTPClient(config)
         self._config = config
-        self._did: str | None = None
-        self._did_resolved: bool = False
         self._agents: AsyncAgentManager | None = None
         self._secrets: AsyncSecretManager | None = None
         self._workspace: AsyncWorkspaceManager | None = None
@@ -156,18 +154,13 @@ class AsyncVenue:
         return self._config.base_url
 
     async def get_did(self) -> str | None:
-        """The DID of this venue, if available.
+        """The DID of this venue, if resolvable.
 
-        The value is fetched from the venue's DID document on first access
-        and cached for subsequent calls.
+        Resolved once (from ``GET /api/v1/status``, falling back to the venue's
+        DID document) and cached on the transport — the same source the
+        audience-bound auth uses, so identity and ``aud`` never disagree.
         """
-        if not self._did_resolved:
-            logger.debug("Fetching DID document for %s", self._config.base_url)
-            doc = await self._client.get_did_document()
-            self._did = doc.id
-            self._did_resolved = True
-            logger.debug("Resolved venue DID: %s", self._did)
-        return self._did
+        return await self._client.venue_did()
 
     async def did_document(self) -> DIDDocument:
         """Get the full DID document for this venue."""

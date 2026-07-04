@@ -73,8 +73,8 @@ class TestAsyncAssetInvoke:
 class TestAsyncAssetDidUrl:
     async def test_did_url(self, httpx_mock, async_venue):
         httpx_mock.add_response(
-            url=f"{VENUE_URL}/.well-known/did.json",
-            json={"id": "did:web:test.covia.ai"},
+            url=f"{VENUE_URL}/api/v1/status",
+            json={"name": "Test", "did": "did:web:test.covia.ai"},
         )
         asset = AsyncAsset({}, id="abc123", venue=async_venue)
         assert await asset.did_url() == "did:web:test.covia.ai/a/abc123"

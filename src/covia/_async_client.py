@@ -315,6 +315,10 @@ class AsyncCoviaHTTPClient:
             self._resolving_did = False
         return self._venue_did
 
+    async def venue_did(self) -> str | None:
+        """The venue's DID — see :meth:`CoviaHTTPClient.venue_did`."""
+        return await self._resolve_audience()
+
     async def _apply_auth(self, kwargs: dict[str, Any]) -> None:
         """Inject authentication headers into request kwargs."""
         auth = self._config.auth

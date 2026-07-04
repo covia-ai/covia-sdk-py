@@ -313,6 +313,13 @@ class CoviaHTTPClient:
             self._resolving_did = False
         return self._venue_did
 
+    def venue_did(self) -> str | None:
+        """The venue's DID — resolved once from ``GET /api/v1/status`` (falling
+        back to the DID document) and cached. This is the same value used as the
+        audience-bound ``aud``, so the venue's reported identity and the token
+        audience never disagree."""
+        return self._resolve_audience()
+
     def _apply_auth(self, kwargs: dict[str, Any]) -> None:
         """Inject authentication headers into request kwargs."""
         auth = self._config.auth

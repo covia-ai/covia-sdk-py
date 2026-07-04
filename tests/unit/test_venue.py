@@ -265,22 +265,21 @@ class TestVenueJobs:
 class TestVenueDIDCaching:
     def test_did_fetches_on_first_access(self, httpx_mock, venue):
         httpx_mock.add_response(
-            url=f"{VENUE_URL}/.well-known/did.json",
-            json={"id": "did:web:test.covia.ai"},
+            url=f"{VENUE_URL}/api/v1/status",
+            json={"name": "Test", "did": "did:web:test.covia.ai"},
         )
         assert venue.did == "did:web:test.covia.ai"
 
     def test_did_caches_after_first_access(self, httpx_mock, venue):
         httpx_mock.add_response(
-            url=f"{VENUE_URL}/.well-known/did.json",
-            json={"id": "did:web:test.covia.ai"},
+            url=f"{VENUE_URL}/api/v1/status",
+            json={"name": "Test", "did": "did:web:test.covia.ai"},
         )
-        # First access fetches
+        # First access resolves via /status; the second uses the cached DID
         did1 = venue.did
-        # Second access uses cache — no additional HTTP request
         did2 = venue.did
         assert did1 == did2 == "did:web:test.covia.ai"
-        # Only one request should have been made
+        # Only one request should have been made (cached thereafter)
         assert len(httpx_mock.get_requests()) == 1
 
     def test_did_document_not_affected_by_cache(self, httpx_mock, venue):

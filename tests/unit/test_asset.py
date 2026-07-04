@@ -123,8 +123,8 @@ class TestAssetVenue:
 
     def test_did_url_with_venue(self, httpx_mock, venue):
         httpx_mock.add_response(
-            url=f"{VENUE_URL}/.well-known/did.json",
-            json={"id": "did:web:test.covia.ai"},
+            url=f"{VENUE_URL}/api/v1/status",
+            json={"name": "Test", "did": "did:web:test.covia.ai"},
         )
         asset = Asset(id="abc123", metadata={}, venue=venue)
         assert asset.did_url == "did:web:test.covia.ai/a/abc123"
