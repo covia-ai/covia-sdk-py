@@ -152,11 +152,14 @@ class AsyncJob:
         await self.wait(timeout=timeout)
         return self.output
 
-    async def stream(self) -> AsyncIterator[SSEEvent]:
-        """Stream server-sent events for this job."""
+    def stream(self) -> AsyncIterator[SSEEvent]:
+        """Stream server-sent events for this job.
+
+        Returns the async iterator directly — iterate it with ``async for``.
+        """
         if self.id is None:
             raise ValueError("Cannot stream a job with no ID")
-        return await self._venue.stream_job_events(self.id)
+        return self._venue.stream_job_events(self.id)
 
     def __repr__(self) -> str:
         return f"AsyncJob(id={self.id!r}, status={self.status!r})"

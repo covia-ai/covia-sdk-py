@@ -304,8 +304,12 @@ class AsyncVenue:
         """Delete a job record."""
         await self._client.delete_job(job_id)
 
-    async def stream_job_events(self, job_id: str) -> AsyncIterator[SSEEvent]:
-        """Stream SSE events for a job."""
+    def stream_job_events(self, job_id: str) -> AsyncIterator[SSEEvent]:
+        """Stream SSE events for a job.
+
+        Returns the async iterator directly (not a coroutine) — iterate it with
+        ``async for``, mirroring the sync :meth:`Venue.stream_job_events`.
+        """
         return self._client.stream_job_events(job_id)
 
     # ------------------------------------------------------------------

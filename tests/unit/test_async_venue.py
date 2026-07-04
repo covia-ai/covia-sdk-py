@@ -85,3 +85,22 @@ class TestAsyncAuthAudience:
         )
         assert payload["aud"] == "did:web:test.covia.ai"
         assert not any("did.json" in str(r.url) for r in httpx_mock.get_requests())
+
+
+class TestAsyncStreaming:
+    async def test_stream_returns_async_iterator_not_coroutine(self, async_venue):
+        # Regression: stream_job_events / AsyncJob.stream must return an async
+        # iterator to `async for` over — not a coroutine you have to await first.
+        import inspect
+        from collections.abc import AsyncIterator
+
+        venue_gen = async_venue.stream_job_events("job-1")
+        assert not inspect.iscoroutine(venue_gen)
+        assert isinstance(venue_gen, AsyncIterator)
+        await venue_gen.aclose()
+
+        job = AsyncJob(data=JobData(id="job-1", status=JobStatus.STARTED), venue=async_venue)
+        job_gen = job.stream()
+        assert not inspect.iscoroutine(job_gen)
+        assert isinstance(job_gen, AsyncIterator)
+        await job_gen.aclose()
