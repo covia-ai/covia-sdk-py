@@ -320,55 +320,56 @@ class TestEd25519AuthIntegration:
         assert payload["aud"] == "did:web:test.covia.ai"
 
     def test_audience_resolved_from_venue_did(self, httpx_mock):
-        # With no explicit audience, the aud is the venue's *reported* DID
-        # (from did.json), not the connection string — and the caller's auth
-        # object is never mutated.
-        httpx_mock.add_response(
-            url=f"{VENUE_URL}/.well-known/did.json",
-            json={"id": "did:web:test.covia.ai"},
-        )
-        httpx_mock.add_response(url=f"{API_BASE}status", json={"name": "Test"})
+        # With no explicit audience, the aud is the venue's *reported* DID, now
+        # taken from GET /api/v1/status (the canonical info endpoint), not the
+        # connection string — and the caller's auth object is never mutated.
+        httpx_mock.add_response(url=f"{API_BASE}status", json={"name": "Test", "did": "did:web:test.covia.ai"})
+        httpx_mock.add_response(url=f"{API_BASE}secrets", json={"items": [], "total": 0})
         auth = Ed25519Auth.generate()  # No audience set
         assert auth.audience is None
 
         venue = Grid.connect(VENUE_URL, auth=auth)
         try:
-            venue.status()
+            venue.list_secrets()
         finally:
             venue.close()
 
         # The auth object is NOT mutated (no sticky connection-string audience).
         assert auth.audience is None
 
-        # The API request's JWT carries aud = the venue's reported DID.
-        status_req = next(r for r in httpx_mock.get_requests() if r.url.path.endswith("/status"))
+        # The authenticated request's JWT carries aud = the DID from /status.
+        sec_req = next(r for r in httpx_mock.get_requests() if r.url.path.endswith("/secrets"))
         payload = jwt.decode(
-            status_req.headers["authorization"].removeprefix("Bearer "),
+            sec_req.headers["authorization"].removeprefix("Bearer "),
             options={"verify_signature": False},
         )
         assert payload["aud"] == "did:web:test.covia.ai"
 
-        # The bootstrap did.json fetch itself carried no aud (re-entrancy guard).
-        did_req = next(r for r in httpx_mock.get_requests() if "did.json" in str(r.url))
-        did_payload = jwt.decode(
-            did_req.headers["authorization"].removeprefix("Bearer "),
+        # The DID came from /status — no did.json round-trip was needed.
+        assert not any("did.json" in str(r.url) for r in httpx_mock.get_requests())
+
+        # The bootstrap /status fetch itself carried no aud (re-entrancy guard).
+        status_req = next(r for r in httpx_mock.get_requests() if r.url.path.endswith("/status"))
+        boot = jwt.decode(
+            status_req.headers["authorization"].removeprefix("Bearer "),
             options={"verify_signature": False},
         )
-        assert "aud" not in did_payload
+        assert "aud" not in boot
 
     def test_audience_omitted_when_venue_reports_no_did(self, httpx_mock):
-        # If did.json can't be resolved, the token is still sent (self-issued),
-        # just without an aud — auth keeps working.
+        # If neither /status nor did.json yields a DID, the token is still sent
+        # (self-issued), just without an aud — auth keeps working.
+        httpx_mock.add_response(url=f"{API_BASE}status", json={"name": "Test"})  # no did
         httpx_mock.add_response(url=f"{VENUE_URL}/.well-known/did.json", status_code=404)
-        httpx_mock.add_response(url=f"{API_BASE}status", json={"name": "Test"})
+        httpx_mock.add_response(url=f"{API_BASE}secrets", json={"items": [], "total": 0})
         venue = Grid.connect(VENUE_URL, auth=Ed25519Auth.generate())
         try:
-            venue.status()
+            venue.list_secrets()
         finally:
             venue.close()
-        status_req = next(r for r in httpx_mock.get_requests() if r.url.path.endswith("/status"))
+        sec_req = next(r for r in httpx_mock.get_requests() if r.url.path.endswith("/secrets"))
         payload = jwt.decode(
-            status_req.headers["authorization"].removeprefix("Bearer "),
+            sec_req.headers["authorization"].removeprefix("Bearer "),
             options={"verify_signature": False},
         )
         assert "aud" not in payload

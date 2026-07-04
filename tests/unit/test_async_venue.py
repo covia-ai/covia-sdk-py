@@ -67,20 +67,21 @@ class TestAsyncVenueGetAsset:
 
 class TestAsyncAuthAudience:
     async def test_audience_resolved_from_venue_did(self, httpx_mock):
-        # Async parity: aud is the venue's reported DID, resolved from did.json,
-        # not the connection string; the auth object is not mutated.
-        httpx_mock.add_response(url=f"{VENUE_URL}/.well-known/did.json", json={"id": "did:web:test.covia.ai"})
-        httpx_mock.add_response(url=f"{API_BASE}status", json={"name": "Test"})
+        # Async parity: aud is the venue's reported DID, now resolved from
+        # /api/v1/status, not the connection string; the auth object is not mutated.
+        httpx_mock.add_response(url=f"{API_BASE}status", json={"name": "Test", "did": "did:web:test.covia.ai"})
+        httpx_mock.add_response(url=f"{API_BASE}secrets", json={"items": [], "total": 0})
         auth = Ed25519Auth.generate()
         venue = AsyncGrid.connect(VENUE_URL, auth=auth)
         try:
-            await venue.status()
+            await venue.list_secrets()
         finally:
             await venue.aclose()
         assert auth.audience is None
-        status_req = next(r for r in httpx_mock.get_requests() if r.url.path.endswith("/status"))
+        sec_req = next(r for r in httpx_mock.get_requests() if r.url.path.endswith("/secrets"))
         payload = jwt.decode(
-            status_req.headers["authorization"].removeprefix("Bearer "),
+            sec_req.headers["authorization"].removeprefix("Bearer "),
             options={"verify_signature": False},
         )
         assert payload["aud"] == "did:web:test.covia.ai"
+        assert not any("did.json" in str(r.url) for r in httpx_mock.get_requests())

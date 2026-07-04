@@ -283,19 +283,31 @@ class AsyncCoviaHTTPClient:
         return response
 
     async def _resolve_audience(self) -> str | None:
-        """The venue's DID, for audience-bound auth — fetched from did.json
-        once and cached. Returns ``None`` if it cannot be resolved (the token
-        is then sent without an ``aud``, i.e. a plain self-issued identity)."""
+        """The venue's DID, for audience-bound auth — resolved once and cached.
+
+        Prefers the DID from ``GET /api/v1/status`` (one request that also
+        carries the venue name and readiness); falls back to the public
+        ``/.well-known/did.json`` for an auth-gated venue whose status endpoint
+        is not anonymously readable. Returns ``None`` if neither resolves (the
+        token is then sent without an ``aud``, i.e. a plain self-issued identity)."""
         if self._venue_did is not None:
             return self._venue_did
         if self._resolving_did:
-            # Re-entrant: this call is the did.json bootstrap itself. It carries
-            # no audience to avoid an infinite loop (the endpoint is public).
+            # Re-entrant: this call is the status/did.json bootstrap itself. It
+            # carries no audience to avoid an infinite loop (both are public).
             return None
         self._resolving_did = True
         try:
-            doc = await self.get_did_document()
-            self._venue_did = doc.id
+            did: str | None = None
+            try:
+                status = await self.get_status()
+                did = status.did
+            except Exception as exc:  # noqa: BLE001 — status may be auth-gated (401)
+                logger.debug("status DID unavailable, falling back to did.json: %s", exc)
+            if not did:
+                doc = await self.get_did_document()
+                did = doc.id
+            self._venue_did = did
         except Exception as exc:  # noqa: BLE001 — best-effort; auth still works without aud
             logger.debug("Could not resolve venue DID for audience: %s", exc)
             return None
