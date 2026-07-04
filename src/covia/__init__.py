@@ -60,6 +60,7 @@ from covia.models import (
     VenueStatus,
     WorkspaceAggregateResult,
     WorkspaceAppendResult,
+    WorkspaceCopyResult,
     WorkspaceCountResult,
     WorkspaceDeleteResult,
     WorkspaceInspectResult,
@@ -137,6 +138,7 @@ __all__ = [
     # Workspace models
     "WorkspaceReadResult",
     "WorkspaceWriteResult",
+    "WorkspaceCopyResult",
     "WorkspaceDeleteResult",
     "WorkspaceAppendResult",
     "WorkspaceListResult",

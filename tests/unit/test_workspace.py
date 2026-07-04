@@ -108,6 +108,21 @@ def test_append(httpx_mock, venue):
     assert result.newSize == 1
 
 
+def test_copy(httpx_mock, venue):
+    # copy is a write (read-then-write server-side) → invoke path, from/to input.
+    httpx_mock.add_response(
+        url=f"{API_BASE}invoke",
+        json=_complete({"existed": False, "pathCreated": True}),
+        status_code=201,
+    )
+    result = venue.workspace.copy("v/ops/json/merge", "o/merge")
+    assert result.existed is False
+    assert result.pathCreated is True
+    body = json.loads(httpx_mock.get_requests()[-1].content)
+    assert body["operation"] == "v/ops/covia/copy"
+    assert body["input"] == {"from": "v/ops/json/merge", "to": "o/merge"}
+
+
 def test_list(httpx_mock, venue):
     _get(httpx_mock, {"exists": True, "type": "map", "count": 2, "keys": ["a", "b"]})
     result = venue.workspace.list("/foo", limit=10)

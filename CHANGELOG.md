@@ -21,6 +21,12 @@
   another user's workspace, extracting a granted secret) could only be done by
   dropping to a raw `venue.run(op, input, ucans=[...])`; the ergonomic API now
   supports it directly. Mirrored on the async managers.
+- **`venue.workspace.copy(from_path, to)`** — server-side value duplication via
+  `v/ops/covia/copy`: reads any resolvable address and writes it to a writable
+  path (`/w/`, `/o/`, `/n/`, `/t/`), returning a typed `WorkspaceCopyResult`
+  (`existed` / `pathCreated`). Pin a venue op under your own `/o/`, cache remote
+  data, or branch a workspace value. Matches the TS SDK's `workspace.copy`;
+  async mirror included.
 - **`covia.did` helpers** — `did_url(did, namespace, *segments)` and
   `parse_did_url` for building/splitting lattice addresses
   (`<DID>/<namespace>/<path>`), `is_did` / `did_method`, `did_web_to_url` /

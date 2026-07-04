@@ -46,6 +46,7 @@ from typing import Any, Protocol
 from covia.models import (
     WorkspaceAggregateResult,
     WorkspaceAppendResult,
+    WorkspaceCopyResult,
     WorkspaceCountResult,
     WorkspaceDeleteResult,
     WorkspaceInspectResult,
@@ -139,6 +140,20 @@ class WorkspaceManager:
         """
         return WorkspaceAppendResult.model_validate(
             self._venue.run("v/ops/covia/append", {"path": path, "value": value}, ucans=ucans)
+        )
+
+    def copy(self, from_path: str, to: str, *, ucans: _Ucans = None) -> WorkspaceCopyResult:
+        """Duplicate a value from *from_path* to *to*, entirely server-side.
+
+        *from_path* is any resolvable address (content hash, ``/a/``, ``/o/``,
+        ``/v/``, a DID URL, or a workspace path); *to* must be a writable path
+        (``/w/``, ``/o/``, ``/n/``, ``/t/``). Implemented as a read-then-write,
+        so both the source-read and destination-write capability checks apply.
+        Useful for pinning a venue op under your own ``/o/`` name, caching remote
+        data locally, or branching a workspace value.
+        """
+        return WorkspaceCopyResult.model_validate(
+            self._venue.run("v/ops/covia/copy", {"from": from_path, "to": to}, ucans=ucans)
         )
 
     def list(
@@ -268,6 +283,11 @@ class AsyncWorkspaceManager:
     async def append(self, path: str, value: Any, *, ucans: _Ucans = None) -> WorkspaceAppendResult:
         return WorkspaceAppendResult.model_validate(
             await self._venue.run("v/ops/covia/append", {"path": path, "value": value}, ucans=ucans)
+        )
+
+    async def copy(self, from_path: str, to: str, *, ucans: _Ucans = None) -> WorkspaceCopyResult:
+        return WorkspaceCopyResult.model_validate(
+            await self._venue.run("v/ops/covia/copy", {"from": from_path, "to": to}, ucans=ucans)
         )
 
     async def list(

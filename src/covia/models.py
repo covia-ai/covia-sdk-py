@@ -271,6 +271,19 @@ class WorkspaceWriteResult(BaseModel):
     model_config = {"extra": "allow"}
 
 
+class WorkspaceCopyResult(BaseModel):
+    """Result of ``v/ops/covia/copy`` — server-side value duplication.
+
+    Copy reads the value at the source and writes it to the destination, so its
+    outcome mirrors :class:`WorkspaceWriteResult` (the destination write's result).
+    """
+
+    existed: bool | None = None  # 0.3.0 (#147): False = created, True = replaced at destination
+    pathCreated: bool | None = None  # 0.3.0: true iff a missing destination parent path was built
+
+    model_config = {"extra": "allow"}
+
+
 class WorkspaceDeleteResult(BaseModel):
     """Result of ``v/ops/covia/delete``.
 
