@@ -95,11 +95,29 @@ class TestMCPDiscovery:
 
 class TestAgentCard:
     def test_basic(self):
-        card = AgentCard(agentProvider={"name": "Covia"})
-        assert card.agentProvider is not None
-        assert card.agentProvider["name"] == "Covia"
+        card = AgentCard(
+            name="probe-agent",
+            description="probe",
+            version="0.3.0",
+            provider={"organization": "Covia", "url": "https://covia.ai"},
+            capabilities={"streaming": True},
+            defaultInputModes=["text/plain"],
+            skills=[],
+            supportedInterfaces=[{"protocolBinding": "JSONRPC", "url": "http://x/a2a"}],
+            preferredTransport="JSONRPC",
+        )
+        assert card.name == "probe-agent"
+        assert card.provider is not None
+        assert card.provider["organization"] == "Covia"
+        assert card.preferredTransport == "JSONRPC"
 
-    def test_empty(self):
-        card = AgentCard()
-        assert card.agentProvider is None
-        assert card.agentSkills is None
+    def test_defaults(self):
+        card = AgentCard(name="agent")
+        assert card.name == "agent"
+        assert card.provider is None
+        assert card.skills is None
+
+    def test_extra_fields_preserved(self):
+        # Forward-compat: spec fields the model doesn't declare survive.
+        card = AgentCard.model_validate({"name": "a", "securitySchemes": {"apiKey": {}}})
+        assert card.model_dump()["securitySchemes"] == {"apiKey": {}}

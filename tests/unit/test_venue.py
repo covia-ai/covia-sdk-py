@@ -313,11 +313,17 @@ class TestVenueDiscovery:
     def test_agent_card(self, httpx_mock, venue):
         httpx_mock.add_response(
             url=f"{VENUE_URL}/.well-known/agent-card.json",
-            json={"agentProvider": {"name": "Covia"}},
+            json={
+                "name": "probe-agent",
+                "provider": {"organization": "Covia", "url": "https://covia.ai"},
+                "preferredTransport": "JSONRPC",
+            },
         )
         card = venue.agent_card()
-        assert card.agentProvider is not None
-        assert card.agentProvider["name"] == "Covia"
+        assert card.name == "probe-agent"
+        assert card.provider is not None
+        assert card.provider["organization"] == "Covia"
+        assert card.preferredTransport == "JSONRPC"
 
 
 class TestVenueErrorHandling:

@@ -108,14 +108,23 @@ class OperationInfo(BaseModel):
 
 
 class AgentCard(BaseModel):
-    """A2A agent card from ``GET /.well-known/agent-card.json``."""
+    """A2A agent card from ``GET /.well-known/agent-card.json``.
 
-    agentProvider: dict[str, Any] | None = None
-    agentCapabilities: dict[str, Any] | None = None
-    agentSkills: list[dict[str, Any]] | None = None
-    agentInterfaces: list[dict[str, Any]] | None = None
-    securityScheme: dict[str, Any] | None = None
-    preferredTransport: dict[str, Any] | None = None
+    Field names mirror the A2A v1.0 wire format the venue serves (via the
+    official A2A Java SDK). ``extra="allow"`` preserves any spec fields a
+    given venue build adds (e.g. ``securitySchemes``, ``protocolVersion``).
+    """
+
+    name: str
+    description: str | None = None
+    version: str | None = None
+    provider: dict[str, Any] | None = None
+    capabilities: dict[str, Any] | None = None
+    defaultInputModes: list[str] | None = None
+    defaultOutputModes: list[str] | None = None
+    skills: list[dict[str, Any]] | None = None
+    supportedInterfaces: list[dict[str, Any]] | None = None
+    preferredTransport: str | None = None
 
     model_config = {"extra": "allow"}
 
