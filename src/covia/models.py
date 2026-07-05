@@ -9,18 +9,6 @@ from pydantic import BaseModel, Field
 from covia.status import JobStatus
 
 # ---------------------------------------------------------------------------
-# Request models
-# ---------------------------------------------------------------------------
-
-
-class InvokeRequest(BaseModel):
-    """Request body for ``POST /api/v1/invoke``."""
-
-    operation: str
-    input: Any = None
-
-
-# ---------------------------------------------------------------------------
 # Response models
 # ---------------------------------------------------------------------------
 #
@@ -72,7 +60,6 @@ class JobData(BaseModel):
     error: str | None = None
     operation: str | None = None
     input: Any = None
-    message: str | None = None
 
     model_config = {"extra": "allow"}
 
@@ -155,10 +142,15 @@ class AgentCreateResult(BaseModel):
 
 
 class AgentRequestResult(BaseModel):
-    """Result of ``v/ops/agent/request``."""
+    """Result of ``v/ops/agent/request``.
 
-    id: str
-    status: str
+    ``id`` (the task/Job id) is present for the async submission path, but a
+    synchronously-awaited request whose agent returns a bare result may omit
+    it — hence optional.
+    """
+
+    id: str | None = None
+    status: str | None = None
     output: Any = None
 
     model_config = {"extra": "allow"}

@@ -230,12 +230,6 @@ class AsyncCoviaHTTPClient:
         resp = await self._raw_request("GET", f"{base}/.well-known/did.json")
         return DIDDocument.model_validate(resp.json())
 
-    async def get_asset_did_document(self, asset_id: str) -> DIDDocument:
-        """``GET /a/{id}/did.json``"""
-        base = self._config.base_url.rstrip("/")
-        resp = await self._raw_request("GET", f"{base}/a/{asset_id}/did.json")
-        return DIDDocument.model_validate(resp.json())
-
     async def get_mcp_discovery(self) -> MCPDiscovery:
         """``GET /.well-known/mcp``"""
         base = self._config.base_url.rstrip("/")

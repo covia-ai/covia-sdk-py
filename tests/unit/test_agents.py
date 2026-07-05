@@ -45,6 +45,20 @@ def test_request(httpx_mock, venue):
     assert result.output == {"answer": 42}
 
 
+def test_request_tolerates_bare_result(httpx_mock, venue):
+    # A synchronously-awaited agent that returns a bare result (no id/status
+    # envelope) must still validate — id/status are optional.
+    httpx_mock.add_response(
+        url=f"{API_BASE}invoke",
+        json=_complete({"answer": 42}),
+        status_code=201,
+    )
+    result = venue.agents.request("agent-a", {"q": "hello"}, wait=5)
+    assert result.id is None
+    assert result.status is None
+    assert result.model_dump()["answer"] == 42
+
+
 def test_message(httpx_mock, venue):
     httpx_mock.add_response(
         url=f"{API_BASE}invoke",

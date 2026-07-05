@@ -7,23 +7,11 @@ from covia.models import (
     AssetList,
     DIDDocument,
     ErrorResponse,
-    InvokeRequest,
     JobData,
     MCPDiscovery,
     VenueStatus,
 )
 from covia.status import JobStatus
-
-
-class TestInvokeRequest:
-    def test_basic(self):
-        req = InvokeRequest(operation="my-op", input={"x": 1})
-        assert req.operation == "my-op"
-        assert req.input == {"x": 1}
-
-    def test_no_input(self):
-        req = InvokeRequest(operation="my-op")
-        assert req.input is None
 
 
 class TestVenueStatus:

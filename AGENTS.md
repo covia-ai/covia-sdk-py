@@ -76,7 +76,7 @@ src/covia/
 
 **Managers (lazy properties on Venue):** `venue.agents`, `venue.secrets`, `venue.workspace`, `venue.ucan`
 
-**Models:** `VenueStatus`, `AssetList`, `JobData`, `DIDDocument`, `MCPDiscovery`, `AgentCard`, `InvokeRequest`, `OperationInfo`, plus agent/workspace/ucan/secret result models (see `covia/__init__.py`).
+**Models:** `VenueStatus`, `AssetList`, `AssetPinResult`, `JobData`, `DIDDocument`, `MCPDiscovery`, `AgentCard`, `OperationInfo`, plus agent/workspace/ucan/secret result models (see `covia/__init__.py`).
 
 **Exceptions:** `CoviaError`, `GridError`, `CoviaConnectionError`, `CoviaTimeoutError`, `JobFailedError`, `AssetNotFoundError`, `JobNotFoundError`
 

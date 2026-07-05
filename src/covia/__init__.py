@@ -53,7 +53,6 @@ from covia.models import (
     AssetPinResult,
     DIDDocument,
     GroupCount,
-    InvokeRequest,
     JobData,
     MCPDiscovery,
     OperationInfo,
@@ -129,7 +128,6 @@ __all__ = [
     "DIDDocument",
     "MCPDiscovery",
     "AgentCard",
-    "InvokeRequest",
     "OperationInfo",
     # Agent models
     "AgentCreateResult",
