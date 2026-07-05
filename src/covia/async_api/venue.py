@@ -11,7 +11,7 @@ from typing import Any
 from covia._async_client import AsyncCoviaHTTPClient
 from covia._sse import SSEEvent
 from covia._transport import TransportConfig
-from covia.agents import AsyncAgentManager
+from covia.agents import AsyncAgent, AsyncAgentManager
 from covia.asset import resolve_asset_id
 from covia.async_api.asset import AsyncAsset
 from covia.async_api.job import AsyncJob
@@ -59,6 +59,11 @@ class AsyncVenue:
         if self._agents is None:
             self._agents = AsyncAgentManager(self)
         return self._agents
+
+    def agent(self, agent_id: str) -> AsyncAgent:
+        """A handle to a single agent, bound to *agent_id* (async mirror of
+        :meth:`Venue.agent <covia.venue.Venue.agent>`)."""
+        return AsyncAgent(agent_id, self)
 
     @property
     def secrets(self) -> AsyncSecretManager:

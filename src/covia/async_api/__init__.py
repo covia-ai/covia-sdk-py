@@ -8,7 +8,7 @@ Example::
         result = await venue.run("my-operation", {"prompt": "hello"})
 """
 
-from covia.agents import AsyncAgentManager
+from covia.agents import AsyncAgent, AsyncAgentManager, AsyncChatSession
 from covia.async_api.asset import AsyncAsset
 from covia.async_api.grid import AsyncGrid
 from covia.async_api.job import AsyncJob
@@ -22,6 +22,8 @@ __all__ = [
     "AsyncVenue",
     "AsyncJob",
     "AsyncAsset",
+    "AsyncAgent",
+    "AsyncChatSession",
     "AsyncAgentManager",
     "AsyncSecretManager",
     "AsyncUCANManager",

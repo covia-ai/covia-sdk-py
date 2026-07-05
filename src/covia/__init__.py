@@ -8,7 +8,7 @@ Connect to a Covia venue and invoke operations::
         result = venue.run("my-operation", {"prompt": "hello"})
 """
 
-from covia.agents import AgentManager
+from covia.agents import Agent, AgentManager, ChatSession
 from covia.asset import Asset
 from covia.auth import Auth, BasicAuth, BearerAuth, Ed25519Auth, NoAuth
 from covia.did import (
@@ -97,6 +97,8 @@ __all__ = [
     "Venue",
     "Job",
     "Asset",
+    "Agent",
+    "ChatSession",
     "JobStatus",
     # Managers
     "AgentManager",

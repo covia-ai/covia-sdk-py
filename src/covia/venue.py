@@ -13,7 +13,7 @@ from typing import Any
 from covia._client import CoviaHTTPClient
 from covia._sse import SSEEvent
 from covia._transport import TransportConfig
-from covia.agents import AgentManager
+from covia.agents import Agent, AgentManager
 from covia.asset import Asset, resolve_asset_id
 from covia.exceptions import CoviaError, CoviaTimeoutError
 from covia.job import Job
@@ -63,6 +63,15 @@ class Venue:
         if self._agents is None:
             self._agents = AgentManager(self)
         return self._agents
+
+    def agent(self, agent_id: str) -> Agent:
+        """A handle to a single agent, bound to *agent_id*.
+
+        ``venue.agent("a").info()`` is equivalent to ``venue.agents.info("a")``
+        but reads more naturally for repeated operations on one agent, and
+        provides :meth:`~covia.agents.Agent.chat_session` for multi-turn chat.
+        """
+        return Agent(agent_id, self)
 
     @property
     def secrets(self) -> SecretManager:

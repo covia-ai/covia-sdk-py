@@ -1,8 +1,12 @@
-"""Tests for AgentManager."""
+"""Tests for AgentManager, the Agent handle, and ChatSession."""
 
 from __future__ import annotations
 
-from covia import AgentListResult
+from unittest.mock import AsyncMock, MagicMock
+
+from covia import Agent, AgentListResult
+from covia.agents import AsyncAgent
+from covia.models import AgentChatResult
 from tests.conftest import VENUE_URL
 
 API_BASE = f"{VENUE_URL}/api/v1/"
@@ -210,3 +214,102 @@ def test_fail_task(httpx_mock, venue):
 def test_lazy_manager_is_cached(venue):
     # accessing venue.agents twice should return the same instance (lazy cache)
     assert venue.agents is venue.agents
+
+
+# ---------------------------------------------------------------------------
+# Agent handle + ChatSession (delegation to the manager)
+# ---------------------------------------------------------------------------
+
+
+def _handle_with_mock() -> tuple[Agent, MagicMock, MagicMock]:
+    agents = MagicMock()
+    venue = MagicMock()
+    venue.agents = agents
+    return Agent("a1", venue), agents, venue
+
+
+def test_venue_agent_returns_handle(venue):
+    handle = venue.agent("a1")
+    assert isinstance(handle, Agent)
+    assert handle.id == "a1"
+    assert handle.venue is venue
+
+
+def test_agent_request_delegates():
+    agent, agents, _ = _handle_with_mock()
+    agent.request({"q": "hi"}, wait=True)
+    agents.request.assert_called_once_with("a1", {"q": "hi"}, wait=True)
+
+
+def test_agent_chat_delegates():
+    agent, agents, _ = _handle_with_mock()
+    agent.chat("hello", "sess-1")
+    agents.chat.assert_called_once_with("a1", "hello", "sess-1")
+
+
+def test_agent_update_binds_id():
+    agent, agents, _ = _handle_with_mock()
+    agent.update(config={"op": "x"}, state={"n": 1})
+    agents.update.assert_called_once_with("a1", config={"op": "x"}, state={"n": 1})
+
+
+def test_agent_info_suspend_resume_delete_context_delegate():
+    agent, agents, _ = _handle_with_mock()
+    agent.info()
+    agents.info.assert_called_once_with("a1")
+    agent.suspend()
+    agents.suspend.assert_called_once_with("a1")
+    agent.resume(auto_wake=True)
+    agents.resume.assert_called_once_with("a1", auto_wake=True)
+    agent.cancel_task("t-1")
+    agents.cancel_task.assert_called_once_with("a1", "t-1")
+    agent.context({"goal": "g"})
+    agents.context.assert_called_once_with("a1", {"goal": "g"})
+    agent.delete(remove=True)
+    agents.delete.assert_called_once_with("a1", remove=True)
+
+
+def test_agent_fork_returns_new_handle():
+    agent, agents, venue = _handle_with_mock()
+    forked = agent.fork("a2", include_timeline=True)
+    agents.fork.assert_called_once_with("a1", "a2", config=None, include_timeline=True, overwrite=None)
+    assert isinstance(forked, Agent)
+    assert forked.id == "a2"
+    assert forked.venue is venue
+
+
+def test_chat_session_captures_session_id():
+    agent, agents, _ = _handle_with_mock()
+    agents.chat.return_value = AgentChatResult(agentId="a1", sessionId="sess-1", response="hi")
+    session = agent.chat_session()
+    assert session.session_id is None
+    result = session.send("hello")
+    agents.chat.assert_called_once_with("a1", "hello", None)
+    assert session.session_id == "sess-1"
+    assert result.sessionId == "sess-1"
+
+
+def test_chat_session_resumes_and_reuses_id():
+    agent, agents, _ = _handle_with_mock()
+    agents.chat.return_value = AgentChatResult(agentId="a1", sessionId="sess-9", response="ok")
+    session = agent.chat_session("sess-9")
+    assert session.session_id == "sess-9"
+    session.send("continue")
+    agents.chat.assert_called_once_with("a1", "continue", "sess-9")
+
+
+async def test_async_agent_delegates_and_chat_session():
+    agents = AsyncMock()
+    venue = MagicMock()
+    venue.agents = agents
+    agent = AsyncAgent("a1", venue)
+
+    await agent.info()
+    agents.info.assert_awaited_once_with("a1")
+
+    agents.chat.return_value = AgentChatResult(agentId="a1", sessionId="sess-2", response="hi")
+    session = agent.chat_session()
+    result = await session.send("hello")
+    agents.chat.assert_awaited_once_with("a1", "hello", None)
+    assert session.session_id == "sess-2"
+    assert result.sessionId == "sess-2"
