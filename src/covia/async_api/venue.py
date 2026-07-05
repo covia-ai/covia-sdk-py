@@ -19,6 +19,7 @@ from covia.exceptions import CoviaError, CoviaTimeoutError
 from covia.models import (
     AgentCard,
     AssetList,
+    AssetPinResult,
     DIDDocument,
     JobData,
     MCPDiscovery,
@@ -216,6 +217,15 @@ class AsyncVenue:
     async def put_asset_content(self, asset_id: str, content: bytes) -> str:
         """Upload content for an asset. Returns the content hash."""
         return await self._client.put_asset_content(asset_id, content)
+
+    async def pin_asset(self, path: str) -> AssetPinResult:
+        """Pin a resolvable value into the content-addressed asset store.
+
+        Idempotent — the same value always yields the same hash. *path* may
+        be a hex hash, ``/a/<hash>``, ``/o/<name>``, a DID URL, or a
+        workspace path. Returns the caller's asset DID URL and content hash.
+        """
+        return AssetPinResult.model_validate(await self.run("v/ops/asset/pin", {"path": path}))
 
     # ------------------------------------------------------------------
     # Operations

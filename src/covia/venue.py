@@ -20,6 +20,7 @@ from covia.job import Job
 from covia.models import (
     AgentCard,
     AssetList,
+    AssetPinResult,
     DIDDocument,
     JobData,
     MCPDiscovery,
@@ -248,6 +249,21 @@ class Venue:
             Content hash string.
         """
         return self._client.put_asset_content(asset_id, content)
+
+    def pin_asset(self, path: str) -> AssetPinResult:
+        """Pin a resolvable value into the content-addressed asset store.
+
+        Idempotent — the same value always yields the same hash. *path* may
+        be a hex hash, ``/a/<hash>``, ``/o/<name>``, a DID URL, or a
+        workspace path.
+
+        Args:
+            path: Source address to pin.
+
+        Returns:
+            The caller's asset DID URL and the bare content hash.
+        """
+        return AssetPinResult.model_validate(self.run("v/ops/asset/pin", {"path": path}))
 
     # ------------------------------------------------------------------
     # Operations

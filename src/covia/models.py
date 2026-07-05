@@ -53,6 +53,16 @@ class AssetList(BaseModel):
     limit: int
 
 
+class AssetPinResult(BaseModel):
+    """Result of ``v/ops/asset/pin`` — the caller's asset DID URL and the
+    bare content hash."""
+
+    path: str
+    hash: str
+
+    model_config = {"extra": "allow"}
+
+
 class JobData(BaseModel):
     """Job data returned by invoke and job status endpoints."""
 

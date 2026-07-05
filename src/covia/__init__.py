@@ -50,6 +50,7 @@ from covia.models import (
     AgentSuspendResult,
     AgentTriggerResult,
     AssetList,
+    AssetPinResult,
     DIDDocument,
     GroupCount,
     InvokeRequest,
@@ -121,6 +122,7 @@ __all__ = [
     # Models
     "VenueStatus",
     "AssetList",
+    "AssetPinResult",
     "JobData",
     "DIDDocument",
     "MCPDiscovery",

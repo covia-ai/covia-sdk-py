@@ -195,6 +195,25 @@ class TestVenueAssets:
         result = venue.put_asset_content("abc123", b"data")
         assert result == "sha256hash"
 
+    def test_pin_asset(self, httpx_mock, venue):
+        httpx_mock.add_response(
+            url=f"{API_BASE}invoke",
+            json={
+                "id": "job-pin",
+                "status": "COMPLETE",
+                "output": {"path": "did:key:z6Mk.../a/deadbeef", "hash": "deadbeef"},
+            },
+            status_code=201,
+        )
+        result = venue.pin_asset("w/my-assets/foo")
+        assert result.hash == "deadbeef"
+        assert result.path == "did:key:z6Mk.../a/deadbeef"
+        import json
+
+        body = json.loads(httpx_mock.get_requests()[-1].content)
+        assert body["operation"] == "v/ops/asset/pin"
+        assert body["input"] == {"path": "w/my-assets/foo"}
+
 
 class TestVenueInvoke:
     def test_invoke_returns_job(self, httpx_mock, venue):

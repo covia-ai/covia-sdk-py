@@ -92,6 +92,20 @@ class TestAsyncVenueGetAsset:
         asset = await async_venue.get_asset("w/my-assets/foo")
         assert asset.name == "Foo"
 
+    async def test_pin_asset(self, httpx_mock, async_venue):
+        httpx_mock.add_response(
+            url=f"{API_BASE}invoke",
+            json={
+                "id": "job-pin",
+                "status": "COMPLETE",
+                "output": {"path": "did:key:z6Mk.../a/deadbeef", "hash": "deadbeef"},
+            },
+            status_code=201,
+        )
+        result = await async_venue.pin_asset("w/my-assets/foo")
+        assert result.hash == "deadbeef"
+        assert result.path == "did:key:z6Mk.../a/deadbeef"
+
 
 class TestAsyncAuthAudience:
     async def test_audience_resolved_from_venue_did(self, httpx_mock):
