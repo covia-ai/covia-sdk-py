@@ -11,11 +11,14 @@ from typing import Any, Protocol
 
 from covia.models import (
     AgentChatResult,
+    AgentCompleteTaskResult,
     AgentCreateResult,
     AgentDeleteResult,
+    AgentFailTaskResult,
+    AgentForkResult,
+    AgentInfoResult,
     AgentListResult,
     AgentMessageResult,
-    AgentQueryResult,
     AgentRequestResult,
     AgentSuspendResult,
     AgentTriggerResult,
@@ -113,9 +116,9 @@ class AgentManager:
         """Fire any pending scheduled work for an agent."""
         return AgentTriggerResult.model_validate(self._venue.run("v/ops/agent/trigger", {"agentId": agent_id}))
 
-    def query(self, agent_id: str) -> AgentQueryResult:
-        """Get current status, state, config, and task list for an agent."""
-        return AgentQueryResult.model_validate(self._venue.run("v/ops/agent/info", {"agentId": agent_id}))
+    def info(self, agent_id: str) -> AgentInfoResult:
+        """A lightweight status/config summary for an agent (``v/ops/agent/info``)."""
+        return AgentInfoResult.model_validate(self._venue.run("v/ops/agent/info", {"agentId": agent_id}))
 
     def list(self, *, include_terminated: bool | None = None) -> AgentListResult:
         """List agents on this venue."""
@@ -153,6 +156,42 @@ class AgentManager:
             "v/ops/agent/cancel-task",
             {"agentId": agent_id, "taskId": task_id},
         )
+
+    def fork(
+        self,
+        source_id: str,
+        agent_id: str,
+        *,
+        config: dict[str, Any] | None = None,
+        include_timeline: bool | None = None,
+        overwrite: bool | None = None,
+    ) -> AgentForkResult:
+        """Fork *source_id* into a new agent *agent_id* (``v/ops/agent/fork``)."""
+        payload = _drop_none(
+            {
+                "sourceId": source_id,
+                "agentId": agent_id,
+                "config": config,
+                "includeTimeline": include_timeline,
+                "overwrite": overwrite,
+            }
+        )
+        return AgentForkResult.model_validate(self._venue.run("v/ops/agent/fork", payload))
+
+    def context(self, agent_id: str, task: Any = None) -> str:
+        """Render the agent's context to a string (``v/ops/agent/context``)."""
+        result: str = self._venue.run("v/ops/agent/context", _drop_none({"agentId": agent_id, "task": task}))
+        return result
+
+    def complete_task(self, result: Any = None) -> AgentCompleteTaskResult:
+        """Complete the current in-scope task (``v/ops/agent/complete-task``)."""
+        return AgentCompleteTaskResult.model_validate(
+            self._venue.run("v/ops/agent/complete-task", _drop_none({"result": result}))
+        )
+
+    def fail_task(self, error: str) -> AgentFailTaskResult:
+        """Fail the current in-scope task (``v/ops/agent/fail-task``)."""
+        return AgentFailTaskResult.model_validate(self._venue.run("v/ops/agent/fail-task", {"error": error}))
 
 
 class AsyncAgentManager:
@@ -206,8 +245,8 @@ class AsyncAgentManager:
     async def trigger(self, agent_id: str) -> AgentTriggerResult:
         return AgentTriggerResult.model_validate(await self._venue.run("v/ops/agent/trigger", {"agentId": agent_id}))
 
-    async def query(self, agent_id: str) -> AgentQueryResult:
-        return AgentQueryResult.model_validate(await self._venue.run("v/ops/agent/info", {"agentId": agent_id}))
+    async def info(self, agent_id: str) -> AgentInfoResult:
+        return AgentInfoResult.model_validate(await self._venue.run("v/ops/agent/info", {"agentId": agent_id}))
 
     async def list(self, *, include_terminated: bool | None = None) -> AgentListResult:
         payload = _drop_none({"includeTerminated": include_terminated})
@@ -239,3 +278,35 @@ class AsyncAgentManager:
             "v/ops/agent/cancel-task",
             {"agentId": agent_id, "taskId": task_id},
         )
+
+    async def fork(
+        self,
+        source_id: str,
+        agent_id: str,
+        *,
+        config: dict[str, Any] | None = None,
+        include_timeline: bool | None = None,
+        overwrite: bool | None = None,
+    ) -> AgentForkResult:
+        payload = _drop_none(
+            {
+                "sourceId": source_id,
+                "agentId": agent_id,
+                "config": config,
+                "includeTimeline": include_timeline,
+                "overwrite": overwrite,
+            }
+        )
+        return AgentForkResult.model_validate(await self._venue.run("v/ops/agent/fork", payload))
+
+    async def context(self, agent_id: str, task: Any = None) -> str:
+        result: str = await self._venue.run("v/ops/agent/context", _drop_none({"agentId": agent_id, "task": task}))
+        return result
+
+    async def complete_task(self, result: Any = None) -> AgentCompleteTaskResult:
+        return AgentCompleteTaskResult.model_validate(
+            await self._venue.run("v/ops/agent/complete-task", _drop_none({"result": result}))
+        )
+
+    async def fail_task(self, error: str) -> AgentFailTaskResult:
+        return AgentFailTaskResult.model_validate(await self._venue.run("v/ops/agent/fail-task", {"error": error}))

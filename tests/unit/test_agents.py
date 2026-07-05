@@ -80,14 +80,22 @@ def test_chat_continues_session(httpx_mock, venue):
     assert body["input"]["sessionId"] == "sess-123"
 
 
-def test_query(httpx_mock, venue):
+def test_info(httpx_mock, venue):
     httpx_mock.add_response(
         url=f"{API_BASE}invoke",
-        json=_complete({"agentId": "agent-a", "status": "RUNNING", "tasks": []}),
+        json=_complete({"agentId": "agent-a", "status": "RUNNING", "timelineLength": 3, "tasks": 1}),
         status_code=201,
     )
-    result = venue.agents.query("agent-a")
+    result = venue.agents.info("agent-a")
+    assert result.agentId == "agent-a"
     assert result.status == "RUNNING"
+    assert result.timelineLength == 3
+    assert result.tasks == 1
+    import json
+
+    body = json.loads(httpx_mock.get_requests()[-1].content)
+    assert body["operation"] == "v/ops/agent/info"
+    assert body["input"] == {"agentId": "agent-a"}
 
 
 def test_list(httpx_mock, venue):
@@ -136,6 +144,67 @@ def test_trigger(httpx_mock, venue):
     )
     result = venue.agents.trigger("agent-a")
     assert result.status == "TRIGGERED"
+
+
+def test_fork(httpx_mock, venue):
+    httpx_mock.add_response(
+        url=f"{API_BASE}invoke",
+        json=_complete({"agentId": "agent-b", "status": "CREATED", "created": True, "forkedFrom": "agent-a"}),
+        status_code=201,
+    )
+    result = venue.agents.fork("agent-a", "agent-b", include_timeline=True)
+    assert result.agentId == "agent-b"
+    assert result.forkedFrom == "agent-a"
+    import json
+
+    body = json.loads(httpx_mock.get_requests()[-1].content)
+    assert body["operation"] == "v/ops/agent/fork"
+    assert body["input"] == {"sourceId": "agent-a", "agentId": "agent-b", "includeTimeline": True}
+
+
+def test_context(httpx_mock, venue):
+    httpx_mock.add_response(
+        url=f"{API_BASE}invoke",
+        json=_complete("rendered context"),
+        status_code=201,
+    )
+    result = venue.agents.context("agent-a", {"goal": "test"})
+    assert result == "rendered context"
+    import json
+
+    body = json.loads(httpx_mock.get_requests()[-1].content)
+    assert body["operation"] == "v/ops/agent/context"
+    assert body["input"] == {"agentId": "agent-a", "task": {"goal": "test"}}
+
+
+def test_complete_task(httpx_mock, venue):
+    httpx_mock.add_response(
+        url=f"{API_BASE}invoke",
+        json=_complete({"agentId": "agent-a", "taskId": "task-1", "status": "COMPLETE"}),
+        status_code=201,
+    )
+    result = venue.agents.complete_task({"answer": 42})
+    assert result.status == "COMPLETE"
+    import json
+
+    body = json.loads(httpx_mock.get_requests()[-1].content)
+    assert body["operation"] == "v/ops/agent/complete-task"
+    assert body["input"] == {"result": {"answer": 42}}
+
+
+def test_fail_task(httpx_mock, venue):
+    httpx_mock.add_response(
+        url=f"{API_BASE}invoke",
+        json=_complete({"agentId": "agent-a", "taskId": "task-1", "status": "FAILED"}),
+        status_code=201,
+    )
+    result = venue.agents.fail_task("boom")
+    assert result.status == "FAILED"
+    import json
+
+    body = json.loads(httpx_mock.get_requests()[-1].content)
+    assert body["operation"] == "v/ops/agent/fail-task"
+    assert body["input"] == {"error": "boom"}
 
 
 def test_lazy_manager_is_cached(venue):

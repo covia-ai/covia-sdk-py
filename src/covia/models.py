@@ -180,14 +180,21 @@ class AgentTriggerResult(BaseModel):
     model_config = {"extra": "allow"}
 
 
-class AgentQueryResult(BaseModel):
-    """Result of ``v/ops/agent/info``."""
+class AgentInfoResult(BaseModel):
+    """Result of ``v/ops/agent/info`` — a lightweight agent summary.
+
+    Full state / history / timeline are read separately via ``covia:read`` on
+    ``g/<agentId>/state`` etc. ``tasks`` is a *count*; ``stateConfig`` is only
+    populated by legacy definition-created agents.
+    """
 
     agentId: str
     status: str
-    state: dict[str, Any] | None = None
     config: dict[str, Any] | None = None
-    tasks: list[Any] | None = None
+    stateConfig: dict[str, Any] | None = None
+    timelineLength: int | None = None
+    tasks: int | None = None
+    error: str | None = None
 
     model_config = {"extra": "allow"}
 
@@ -224,6 +231,37 @@ class AgentSuspendResult(BaseModel):
     """Result of ``v/ops/agent/suspend`` and ``v/ops/agent/resume``."""
 
     agentId: str
+    status: str
+
+    model_config = {"extra": "allow"}
+
+
+class AgentForkResult(BaseModel):
+    """Result of ``v/ops/agent/fork``."""
+
+    agentId: str
+    status: str
+    created: bool
+    forkedFrom: str
+
+    model_config = {"extra": "allow"}
+
+
+class AgentCompleteTaskResult(BaseModel):
+    """Result of ``v/ops/agent/complete-task``."""
+
+    agentId: str
+    taskId: str
+    status: str
+
+    model_config = {"extra": "allow"}
+
+
+class AgentFailTaskResult(BaseModel):
+    """Result of ``v/ops/agent/fail-task``."""
+
+    agentId: str
+    taskId: str
     status: str
 
     model_config = {"extra": "allow"}
