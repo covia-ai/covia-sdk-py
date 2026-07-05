@@ -147,6 +147,26 @@ class AsyncCoviaHTTPClient:
         """``PUT /api/v1/jobs/{id}/delete``"""
         await self._request_job("PUT", f"jobs/{job_id}/delete", job_id)
 
+    async def pause_job(self, job_id: str) -> JobData:
+        """``PUT /api/v1/jobs/{id}/pause``"""
+        resp = await self._request_job("PUT", f"jobs/{job_id}/pause", job_id)
+        return JobData.model_validate(resp.json())
+
+    async def resume_job(self, job_id: str) -> JobData:
+        """``PUT /api/v1/jobs/{id}/resume``"""
+        resp = await self._request_job("PUT", f"jobs/{job_id}/resume", job_id)
+        return JobData.model_validate(resp.json())
+
+    async def send_job_message(self, job_id: str, message: Any) -> dict[str, Any]:
+        """``POST /api/v1/jobs/{id}`` — deliver a message to a running job.
+
+        Returns the venue's queue acknowledgement (``{status, queueDepth}``).
+        A non-object *message* is wrapped by the venue as ``{content: message}``.
+        """
+        resp = await self._request_job("POST", f"jobs/{job_id}", job_id, json=message)
+        result: dict[str, Any] = resp.json()
+        return result
+
     async def stream_job_events(self, job_id: str) -> AsyncIterator[SSEEvent]:
         """``GET /api/v1/jobs/{id}/sse`` — yields SSE events."""
         async with aconnect_sse(self._client, "GET", f"jobs/{job_id}/sse") as event_source:

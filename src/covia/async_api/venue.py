@@ -297,6 +297,22 @@ class AsyncVenue:
         """Delete a job record."""
         await self._client.delete_job(job_id)
 
+    async def pause_job(self, job_id: str) -> JobData:
+        """Pause a running job."""
+        return await self._client.pause_job(job_id)
+
+    async def resume_job(self, job_id: str) -> JobData:
+        """Resume a paused job."""
+        return await self._client.resume_job(job_id)
+
+    async def send_job_message(self, job_id: str, message: Any) -> dict[str, Any]:
+        """Deliver a message to a running job.
+
+        Returns the venue's queue acknowledgement (``{"status", "queueDepth"}``).
+        A non-object *message* is wrapped by the venue as ``{"content": message}``.
+        """
+        return await self._client.send_job_message(job_id, message)
+
     def stream_job_events(self, job_id: str) -> AsyncIterator[SSEEvent]:
         """Stream SSE events for a job.
 

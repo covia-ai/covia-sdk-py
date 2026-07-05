@@ -53,6 +53,34 @@ class TestAsyncJobWait:
             await job.wait(timeout=0.1)
 
 
+class TestAsyncJobInteractive:
+    async def test_needs_input_and_auth(self, async_venue):
+        job = AsyncJob(data=JobData(id="j", status=JobStatus.INPUT_REQUIRED), venue=async_venue)
+        assert job.needs_input and not job.needs_auth and job.is_paused
+        job2 = AsyncJob(data=JobData(id="j", status=JobStatus.AUTH_REQUIRED), venue=async_venue)
+        assert job2.needs_auth and not job2.needs_input
+
+    async def test_pause_resume(self, httpx_mock, async_venue):
+        job = AsyncJob(data=JobData(id="job001", status=JobStatus.STARTED), venue=async_venue)
+        httpx_mock.add_response(url=f"{API_BASE}jobs/job001/pause", json={"id": "job001", "status": "PAUSED"})
+        await job.pause()
+        assert job.status == JobStatus.PAUSED
+        httpx_mock.add_response(url=f"{API_BASE}jobs/job001/resume", json={"id": "job001", "status": "STARTED"})
+        await job.resume()
+        assert job.status == JobStatus.STARTED
+
+    async def test_send_message(self, httpx_mock, async_venue):
+        job = AsyncJob(data=JobData(id="job001", status=JobStatus.INPUT_REQUIRED), venue=async_venue)
+        httpx_mock.add_response(
+            url=f"{API_BASE}jobs/job001",
+            method="POST",
+            json={"status": "queued", "queueDepth": 2},
+            status_code=202,
+        )
+        result = await job.send_message({"answer": "yes"})
+        assert result == {"status": "queued", "queueDepth": 2}
+
+
 class TestAsyncVenueGetAsset:
     async def test_get_asset_by_lattice_path(self, httpx_mock, async_venue):
         raw = '{"name": "Foo"}'

@@ -82,6 +82,16 @@ class Job:
         return self._data.status.is_paused
 
     @property
+    def needs_input(self) -> bool:
+        """Whether the job is paused awaiting caller input (``INPUT_REQUIRED``)."""
+        return self._data.status == JobStatus.INPUT_REQUIRED
+
+    @property
+    def needs_auth(self) -> bool:
+        """Whether the job is paused awaiting authentication (``AUTH_REQUIRED``)."""
+        return self._data.status == JobStatus.AUTH_REQUIRED
+
+    @property
     def output(self) -> Any:
         """The job output.
 
@@ -155,6 +165,43 @@ class Job:
         if self.id is None:
             raise ValueError("Cannot cancel a job with no ID")
         self._data = self._venue.cancel_job(self.id)
+
+    def pause(self) -> None:
+        """Pause this job, refreshing its local state.
+
+        Raises:
+            ValueError: If the job has no ID.
+        """
+        if self.id is None:
+            raise ValueError("Cannot pause a job with no ID")
+        self._data = self._venue.pause_job(self.id)
+
+    def resume(self) -> None:
+        """Resume this paused job, refreshing its local state.
+
+        Raises:
+            ValueError: If the job has no ID.
+        """
+        if self.id is None:
+            raise ValueError("Cannot resume a job with no ID")
+        self._data = self._venue.resume_job(self.id)
+
+    def send_message(self, message: Any) -> dict[str, Any]:
+        """Deliver a message to this running job.
+
+        Useful for interactive jobs paused in ``INPUT_REQUIRED`` /
+        ``AUTH_REQUIRED``. A non-object *message* is wrapped by the venue as
+        ``{"content": message}``.
+
+        Returns:
+            The venue's queue acknowledgement (``{"status", "queueDepth"}``).
+
+        Raises:
+            ValueError: If the job has no ID.
+        """
+        if self.id is None:
+            raise ValueError("Cannot send a message to a job with no ID")
+        return self._venue.send_job_message(self.id, message)
 
     def result(self, *, timeout: float | None = None) -> Any:
         """Wait for the job to complete and return its output.

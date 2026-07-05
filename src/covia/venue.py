@@ -366,6 +366,35 @@ class Venue:
         """
         self._client.delete_job(job_id)
 
+    def pause_job(self, job_id: str) -> JobData:
+        """Pause a running job.
+
+        Args:
+            job_id: Job identifier.
+        """
+        return self._client.pause_job(job_id)
+
+    def resume_job(self, job_id: str) -> JobData:
+        """Resume a paused job.
+
+        Args:
+            job_id: Job identifier.
+        """
+        return self._client.resume_job(job_id)
+
+    def send_job_message(self, job_id: str, message: Any) -> dict[str, Any]:
+        """Deliver a message to a running job (e.g. an interactive/paused job).
+
+        Args:
+            job_id: Job identifier.
+            message: Message payload. A non-object value is wrapped by the
+                venue as ``{"content": message}``.
+
+        Returns:
+            The venue's queue acknowledgement (``{"status", "queueDepth"}``).
+        """
+        return self._client.send_job_message(job_id, message)
+
     def stream_job_events(self, job_id: str) -> Iterator[SSEEvent]:
         """Stream SSE events for a job.
 

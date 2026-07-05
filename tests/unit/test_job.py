@@ -145,3 +145,60 @@ class TestJobCancel:
         job = Job(data=data, venue=venue)
         with pytest.raises(ValueError, match="no ID"):
             job.cancel()
+
+
+class TestJobInteractive:
+    def test_needs_input(self, venue):
+        job = Job(data=JobData(id="j", status=JobStatus.INPUT_REQUIRED), venue=venue)
+        assert job.needs_input
+        assert not job.needs_auth
+        assert job.is_paused
+
+    def test_needs_auth(self, venue):
+        job = Job(data=JobData(id="j", status=JobStatus.AUTH_REQUIRED), venue=venue)
+        assert job.needs_auth
+        assert not job.needs_input
+        assert job.is_paused
+
+    def test_pause(self, httpx_mock, venue):
+        job = _make_job(venue)
+        httpx_mock.add_response(
+            url=f"{API_BASE}jobs/job001/pause",
+            json={"id": "job001", "status": "PAUSED"},
+        )
+        job.pause()
+        assert job.status == JobStatus.PAUSED
+
+    def test_resume(self, httpx_mock, venue):
+        job = Job(data=JobData(id="job001", status=JobStatus.PAUSED), venue=venue)
+        httpx_mock.add_response(
+            url=f"{API_BASE}jobs/job001/resume",
+            json={"id": "job001", "status": "STARTED"},
+        )
+        job.resume()
+        assert job.status == JobStatus.STARTED
+
+    def test_send_message(self, httpx_mock, venue):
+        job = _make_job(venue)
+        httpx_mock.add_response(
+            url=f"{API_BASE}jobs/job001",
+            method="POST",
+            json={"status": "queued", "queueDepth": 1},
+            status_code=202,
+        )
+        result = job.send_message({"answer": "yes"})
+        assert result == {"status": "queued", "queueDepth": 1}
+        import json
+
+        body = json.loads(httpx_mock.get_requests()[-1].content)
+        assert body == {"answer": "yes"}
+
+    def test_pause_no_id_raises(self, venue):
+        job = Job(data=JobData(status=JobStatus.PENDING), venue=venue)
+        with pytest.raises(ValueError, match="no ID"):
+            job.pause()
+
+    def test_send_message_no_id_raises(self, venue):
+        job = Job(data=JobData(status=JobStatus.PENDING), venue=venue)
+        with pytest.raises(ValueError, match="no ID"):
+            job.send_message({"x": 1})
