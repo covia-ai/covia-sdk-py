@@ -184,7 +184,11 @@ def test_cross_user_read_with_ucan_delegation(alice, bob):
         except Exception as e:
             pytest.skip(f"venue does not support ucan:issue or rejected it: {e}")
 
-        token = issued.get("token") if isinstance(issued, dict) else None
+        # ucan.issue returns a typed UCANIssueResult (model with .token); older
+        # paths may hand back a plain dict — accept both.
+        token = getattr(issued, "token", None)
+        if token is None and isinstance(issued, dict):
+            token = issued.get("token")
         if not isinstance(token, str):
             pytest.skip(f"unexpected ucan:issue response shape: {issued!r}")
 
