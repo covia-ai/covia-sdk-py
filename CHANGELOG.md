@@ -4,6 +4,25 @@
 
 ### Added
 
+- **`venue.agent(id)` handle + `ChatSession`** — `venue.agent("a")` returns a
+  lightweight `Agent` bound to one id that delegates to `venue.agents`, so
+  `venue.agent("a").info()` reads the same as `venue.agents.info("a")`.
+  `Agent.chat_session()` returns a `ChatSession` that auto-captures the
+  server-minted session id across turns. Full sync + async parity
+  (`AsyncAgent`, `AsyncChatSession`), matching the TS SDK's `Agent` handle.
+- **Agent op parity** — `venue.agents` gained `fork`, `context`,
+  `complete_task`, and `fail_task` (mirroring `v/ops/agent/*`), with typed
+  `AgentForkResult` / `AgentCompleteTaskResult` / `AgentFailTaskResult`.
+- **`venue.pin_asset(path)`** — pin any resolvable value into the caller's
+  content-addressed asset store via `v/ops/asset/pin` (idempotent), returning
+  a typed `AssetPinResult` (`path` / `hash`). Matches the TS `assets.pin`.
+  Async mirror included.
+- **`Job` interactive controls** — `Job.pause()` / `Job.resume()` (`PUT
+  /jobs/{id}/pause|resume`) and `Job.send_message(message)` (`POST
+  /jobs/{id}`, for delivering input to a paused/interactive job), plus
+  `Job.needs_input` / `Job.needs_auth` predicates for the `INPUT_REQUIRED` /
+  `AUTH_REQUIRED` states. Also exposed at the venue level (`venue.pause_job`
+  / `resume_job` / `send_job_message`). Sync + async.
 - **`Venue.wait_until_ready()`** — block until the venue's API is ready to
   serve operations, polling `GET /api/v1/status` (not the root URL, which a
   venue answers before its invoke layer is initialised). Returns the ready
@@ -47,6 +66,22 @@
 
 ### Changed
 
+- **`venue.agents.query()` renamed to `info()`.** Returns a typed
+  `AgentInfoResult` — the venue's lightweight `{agentId, status, config?,
+  stateConfig?, timelineLength?, tasks?}` summary — in place of the old
+  straddle model that no longer matched the wire. **Breaking:** migrate
+  `venue.agents.query(id)` → `venue.agents.info(id)`.
+- **`AgentCard` model corrected to the A2A v1.0 wire shape.** The old fields
+  (`agentProvider`, `agentCapabilities`, `agentSkills`, `agentInterfaces`,
+  `securityScheme`) never matched what the venue serves at
+  `/.well-known/agent-card.json` — they were always `None`. Now: `name`,
+  `description`, `version`, `provider`, `capabilities`, `defaultInputModes`,
+  `defaultOutputModes`, `skills`, `supportedInterfaces`, `preferredTransport`
+  (a string). Verified against a live venue card. **Breaking** for anyone
+  reading the old field names.
+- **`AgentRequestResult.id` / `.status` are now optional.** A synchronously
+  awaited request whose agent returns a bare result carries no id/status
+  envelope; the model tolerates both shapes.
 - **`venue.secrets.put()` removed — use `venue.secrets.set()`.** The two did
   the identical thing: the venue's REST `PUT /secrets/{name}` is just a thin
   wrapper over the `v/ops/secret/set` op that `set` already calls. The SDK now
@@ -72,16 +107,17 @@
   and `covia.did.asset_hash(ref)` exposes the content-hash detection. (Path
   resolution requires venue support — covia#150.)
 - **Auth audience is now the venue's reported DID.** `Ed25519Auth` (when no
-  audience is pinned) gets its JWT `aud` from the venue's DID document
-  (`/.well-known/did.json`), resolved once per connection and cached — instead
-  of `Grid.connect` deriving it from the connection string and mutating the
-  auth object in place. This makes `aud` correct however you address the venue
-  (URL or DID), and lets one `Ed25519Auth` be reused across venues safely.
-  Pin `Ed25519Auth(audience=...)` to override. **Breaking:** `Auth.apply()`
-  now takes an optional `audience` argument (`apply(self, headers, audience=None)`)
+  audience is pinned) gets its JWT `aud` from the venue's reported `did` in
+  `GET /api/v1/status` (falling back to `/.well-known/did.json`), resolved
+  once per connection and cached — instead of `Grid.connect` deriving it from
+  the connection string and mutating the auth object in place. Reusing the
+  `status` response the client already needs for setup avoids an extra
+  round-trip. This makes `aud` correct however you address the venue (URL or
+  DID), and lets one `Ed25519Auth` be reused across venues safely. Pin
+  `Ed25519Auth(audience=...)` to override. **Breaking:** `Auth.apply()` now
+  takes an optional `audience` argument (`apply(self, headers, audience=None)`)
   and gains a `wants_audience` property — custom `Auth` subclasses must accept
-  the new parameter. The first authenticated request now performs a one-time
-  `did.json` fetch to resolve the audience.
+  the new parameter.
 - **`venue.ucan.issue(...)` return type** — now returns `UCANIssueResult`
   rather than a raw dict. Migrate `result["token"]` → `result.token`.
 - **Version single-sourced** in `src/covia/__init__.py`; `pyproject.toml`
@@ -98,6 +134,15 @@
   providers (`BearerAuth` / `BasicAuth` / `Ed25519Auth`) and the
   `agents` / `secrets` / `workspace` / `ucan` managers, and fixed the PyPI
   `Documentation` URL.
+
+### Removed
+
+- **`InvokeRequest` model** — nothing constructed or consumed it (the client
+  builds the invoke body inline). Dropped from the public exports.
+- **`get_asset_did_document`** — dead client method (assets are
+  content-addressed, not DID-document-resolved).
+- **`JobData.message` field** — never read; `extra="allow"` still preserves
+  it on the wire if a venue sends one.
 
 ## 0.2.0 — 2026-06-11
 
