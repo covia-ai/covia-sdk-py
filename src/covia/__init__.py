@@ -84,7 +84,7 @@ from covia.workspace import WorkspaceManager
 # Single source of truth for the package version. Hatchling reads this literal
 # at build time (see [tool.hatch.version] in pyproject.toml), so the installed
 # package metadata always matches this value — no duplication, no drift.
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 # Library-level NullHandler — prevents "No handlers could be found" warnings.
 # Users must configure logging themselves to see SDK log output.
