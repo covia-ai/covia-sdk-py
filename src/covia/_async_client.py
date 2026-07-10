@@ -116,17 +116,31 @@ class AsyncCoviaHTTPClient:
     # Jobs / Invoke
     # ------------------------------------------------------------------
 
-    async def invoke(self, operation: str, input: Any = None, *, ucans: list[str] | None = None) -> JobData:
+    async def invoke(
+        self,
+        operation: str,
+        input: Any = None,
+        *,
+        ucans: list[str] | None = None,
+        private: bool = False,
+        wait: bool | int | None = None,
+    ) -> JobData:
         """``POST /api/v1/invoke``.
 
         ``ucans`` is an optional list of UCAN proof tokens authorising
-        capability-gated operations.
+        capability-gated operations. ``private`` runs a memory-only job
+        (covia #192); ``wait`` blocks server-side (``True`` = the venue's wait
+        cap, an int = milliseconds).
         """
         body: dict[str, Any] = {"operation": operation}
         if input is not None:
             body["input"] = input
         if ucans:
             body["ucans"] = list(ucans)
+        if private:
+            body["private"] = True
+        if wait is not None:
+            body["wait"] = wait
         resp = await self._request("POST", "invoke", json=body)
         return JobData.model_validate(resp.json())
 
@@ -280,6 +294,7 @@ class AsyncCoviaHTTPClient:
         await self._apply_auth(kwargs)
         import random as _random
         import time as _time
+
         deadline_ms = _time.monotonic() * 1000 + BUDGET_MS
         attempt = 0
         while True:
@@ -311,6 +326,7 @@ class AsyncCoviaHTTPClient:
         await self._apply_auth(kwargs)
         import random as _random
         import time as _time
+
         deadline_ms = _time.monotonic() * 1000 + BUDGET_MS
         attempt = 0
         while True:

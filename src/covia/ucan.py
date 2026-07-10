@@ -25,7 +25,7 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
-from covia.models import UCANAttenuation, UCANIssueResult
+from covia.models import UCANAttenuation, UCANIssueResult, UCANVerifyResult
 
 
 class _SyncInvoker(Protocol):
@@ -73,6 +73,34 @@ class UCANManager:
             )
         )
 
+    def verify(
+        self,
+        token: str,
+        *,
+        with_: str | None = None,
+        can: str | None = None,
+        aud: str | None = None,
+    ) -> UCANVerifyResult:
+        """Verify ``token`` against the venue's trust policy (diagnostic).
+
+        Optionally checks whether the token would authorise a specific
+        request: pass ``with_`` (resource) + ``can`` (ability), and ``aud``
+        (the presenting audience — defaults venue-side to the caller).
+
+        Returns:
+            A :class:`~covia.models.UCANVerifyResult` — ``valid`` plus an
+            explanation (``reason``, per-capability ``rootAuthority``
+            verdicts, ``authorises`` for the optional check).
+        """
+        body: dict[str, Any] = {"token": token}
+        if with_ is not None:
+            body["with"] = with_
+        if can is not None:
+            body["can"] = can
+        if aud is not None:
+            body["aud"] = aud
+        return UCANVerifyResult.model_validate(self._venue.run("v/ops/ucan/verify", body))
+
 
 class AsyncUCANManager:
     """Async mirror of :class:`UCANManager`."""
@@ -92,3 +120,31 @@ class AsyncUCANManager:
                 {"aud": audience, "att": _serialise_atts(attenuations), "exp": expiry},
             )
         )
+
+    async def verify(
+        self,
+        token: str,
+        *,
+        with_: str | None = None,
+        can: str | None = None,
+        aud: str | None = None,
+    ) -> UCANVerifyResult:
+        """Verify ``token`` against the venue's trust policy (diagnostic).
+
+        Optionally checks whether the token would authorise a specific
+        request: pass ``with_`` (resource) + ``can`` (ability), and ``aud``
+        (the presenting audience — defaults venue-side to the caller).
+
+        Returns:
+            A :class:`~covia.models.UCANVerifyResult` — ``valid`` plus an
+            explanation (``reason``, per-capability ``rootAuthority``
+            verdicts, ``authorises`` for the optional check).
+        """
+        body: dict[str, Any] = {"token": token}
+        if with_ is not None:
+            body["with"] = with_
+        if can is not None:
+            body["can"] = can
+        if aud is not None:
+            body["aud"] = aud
+        return UCANVerifyResult.model_validate(await self._venue.run("v/ops/ucan/verify", body))

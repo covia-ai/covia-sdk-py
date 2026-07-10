@@ -135,8 +135,7 @@ class AgentManager:
         **Job-free** on covia ≥ 0.4 (``GET /api/v1/agents/{id}``, covia #180);
         older venues transparently fall back to the invoke path (one probe,
         remembered)."""
-        data = self._agents_get(f"/{agent_id}", {},
-            lambda: self._venue.run("v/ops/agent/info", {"agentId": agent_id}))
+        data = self._agents_get(f"/{agent_id}", {}, lambda: self._venue.run("v/ops/agent/info", {"agentId": agent_id}))
         return AgentInfoResult.model_validate(data)
 
     def list(self, *, include_terminated: bool | None = None) -> AgentListResult:
@@ -145,8 +144,7 @@ class AgentManager:
         **Job-free** on covia ≥ 0.4 (``GET /api/v1/agents``, covia #180);
         older venues transparently fall back to the invoke path."""
         params = _drop_none({"includeTerminated": include_terminated})
-        data = self._agents_get("", params,
-            lambda: self._venue.run("v/ops/agent/list", params))
+        data = self._agents_get("", params, lambda: self._venue.run("v/ops/agent/list", params))
         return AgentListResult.model_validate(data)
 
     def _agents_get(self, suffix: str, params: dict[str, Any], fallback: Any) -> Any:
@@ -290,16 +288,16 @@ class AsyncAgentManager:
     async def info(self, agent_id: str) -> AgentInfoResult:
         """A lightweight status/config summary for an agent (job-free on
         covia ≥ 0.4, covia #180; older venues fall back to the invoke path)."""
-        data = await self._agents_get(f"/{agent_id}", {},
-            lambda: self._venue.run("v/ops/agent/info", {"agentId": agent_id}))
+        data = await self._agents_get(
+            f"/{agent_id}", {}, lambda: self._venue.run("v/ops/agent/info", {"agentId": agent_id})
+        )
         return AgentInfoResult.model_validate(data)
 
     async def list(self, *, include_terminated: bool | None = None) -> AgentListResult:
         """List agents on this venue (job-free on covia ≥ 0.4, covia #180;
         older venues fall back to the invoke path)."""
         params = _drop_none({"includeTerminated": include_terminated})
-        data = await self._agents_get("", params,
-            lambda: self._venue.run("v/ops/agent/list", params))
+        data = await self._agents_get("", params, lambda: self._venue.run("v/ops/agent/list", params))
         return AgentListResult.model_validate(data)
 
     async def _agents_get(self, suffix: str, params: dict[str, Any], fallback: Any) -> Any:

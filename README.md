@@ -85,6 +85,21 @@ result = venue.run("my-operation", {"prompt": "hello"}, timeout=30)
 output = venue.invoke("my-op", {"x": 1}).result(timeout=30)
 ```
 
+#### Private jobs
+
+`venue.set_private(True)` puts the connection in **private-jobs mode**: every
+subsequent `run()` executes as a memory-only job — never persisted to the
+venue's job index, gone on venue restart (the venue must enable
+`enablePrivateJobs`). Results are collected through the server-side invoke
+`wait` window rather than polling, because a completed private job is
+immediately forgotten — so private mode works with `run()`, and poll-style
+`invoke()` raises.
+
+```python
+venue.set_private(True)
+result = venue.run("v/ops/schema/infer", {"value": {"name": "Ada"}})
+```
+
 ### Job Lifecycle
 
 ```python
@@ -188,6 +203,26 @@ token = venue.ucan.issue(
     expiry=2_000_000_000,
 ).token
 result = venue.run("v/ops/covia/read", {"path": "did:key:zAlice/w/shared"}, ucans=[token])
+
+# Diagnose a token against the venue's trust policy
+verdict = venue.ucan.verify(token, with_="did:key:zAlice/w/shared", can="crud/read", aud="did:key:zBob")
+print(verdict.valid, verdict.root_issuer, verdict.authorises)
+```
+
+Tokens can also be minted **client-side** with your own Ed25519 key — no venue
+round-trip (requires the `signing` extra: `pip install covia[signing]`):
+
+```python
+from covia.ucan_tokens import grant, identity_token, relay_delegation, did_for
+
+# Self-sovereign grant over your own namespace — verifies on ANY venue
+token = grant(private_key, "did:key:zBob", f"{did_for(private_key)}/w/shared/", "crud/read", 3600)
+
+# Identity token — proves control of your DID to a venue (empty attenuation)
+id_token = identity_token(private_key, venue_did)
+
+# Relay delegation — authorises the venue to forward your authority cross-venue
+relay = relay_delegation(private_key, venue_did, 300, [{"with": f"{did_for(private_key)}/w/", "can": "crud/read"}])
 ```
 
 ### Async Support
@@ -215,7 +250,7 @@ async def main():
 ### Error Handling
 
 ```python
-from covia import Grid, CoviaError, GridError, JobFailedError, CoviaTimeoutError
+from covia import Grid, CoviaError, GridError, JobFailedError, CoviaTimeoutError, RateLimitError
 
 try:
     result = venue.run("might-fail", {"x": 1}, timeout=30)
@@ -223,6 +258,9 @@ except JobFailedError as e:
     print(f"Job failed: {e.job_data.error}")
 except CoviaTimeoutError:
     print("Operation timed out")
+except RateLimitError as e:
+    # 429 after bounded automatic retries — rate limit or concurrent-job cap
+    print(f"Rate limited, retry after {e.retry_after_seconds}s")
 except GridError as e:
     print(f"API error {e.status_code}: {e.message}")
 except CoviaError as e:

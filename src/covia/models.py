@@ -446,6 +446,29 @@ class UCANAttenuation(BaseModel):
     model_config = {"extra": "allow", "populate_by_name": True}
 
 
+class UCANVerifyResult(BaseModel):
+    """Result of ``v/ops/ucan/verify`` — a diagnostic verdict on a token.
+
+    ``valid`` reports whether the token verifies against the venue's trust
+    policy; when it doesn't, ``reason`` explains why. Each entry in ``att``
+    carries a per-capability ``rootAuthority`` verdict (``owner`` / ``venue``
+    / ``refused``). When a ``with``/``can``/``aud`` check was supplied,
+    ``authorises`` reports whether the token would authorise that request.
+    """
+
+    valid: bool
+    reason: str | None = None
+    iss: str | None = None
+    aud: str | None = None
+    exp: int | None = None
+    chain_depth: int | None = Field(default=None, alias="chainDepth")
+    root_issuer: str | None = Field(default=None, alias="rootIssuer")
+    att: list[dict[str, Any]] | None = None
+    authorises: bool | None = None
+
+    model_config = {"extra": "allow", "populate_by_name": True}
+
+
 class UCANIssueResult(BaseModel):
     """Result of ``v/ops/ucan/issue`` — the issued delegation token.
 

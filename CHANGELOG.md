@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.4.0
+
+Targets Covia venue 0.4.0.
+
+### Added
+
+- **Job-free agent reads** — `venue.agents.list()` / `info()` now use the
+  job-free `GET /api/v1/agents` transport (covia #180) on venues that support
+  it, probing once per connection and falling back to the invoke path on
+  older venues. No job record is minted for a read.
+- **429 backpressure handling** — venue rate limits and concurrent-job caps
+  (covia 0.4.0) are handled transparently: requests denied with 429 are
+  retried with full-jitter exponential backoff honouring `Retry-After`
+  (bounded — 4 attempts, 30s budget), after which a typed
+  `RateLimitError` (carrying `retry_after`) is raised.
+- **Private jobs (covia #192)** — `venue.set_private(True)` puts the
+  connection in private-jobs mode: every `run()` executes as a memory-only
+  job (never persisted, gone on venue restart; venue must enable
+  `enablePrivateJobs`). Results are collected through the server-side
+  invoke `wait` window; poll-style `invoke()` raises under private mode,
+  since a completed private job is immediately forgotten. Sync + async.
+- **Client-side UCAN minting** (`covia.ucan_tokens`, requires the
+  `signing` extra) — mint tokens locally with your own Ed25519 key, no
+  venue round-trip: `grant()` (self-sovereign delegation over your own
+  namespace), `identity_token()` (empty-attenuation token proving control
+  of a DID to a venue), `relay_delegation()` (venue/relay forwarding
+  authority for cross-venue calls), plus `create_ucan_jwt()` / `did_for()`
+  primitives.
+- **`venue.ucan.verify(token, ...)`** — run the `ucan:verify` diagnostic
+  against the venue's trust policy, returning a typed `UCANVerifyResult`
+  (`valid`/`reason`, `chain_depth`, `root_issuer`, per-capability
+  `rootAuthority` verdicts, and an optional would-it-authorise check via
+  `with_`/`can`/`aud`).
+- **`invoke(..., private=, wait=)`** — the low-level clients pass through
+  the invoke body's `private` and `wait` fields (`wait=True` blocks up to
+  the venue's cap; an int is milliseconds).
+
 ## 0.3.0
 
 ### Added

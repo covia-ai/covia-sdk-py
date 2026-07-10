@@ -20,6 +20,7 @@ API_BASE = f"{VENUE_URL}/api/v1/"
 
 # ── retry policy (pure) ─────────────────────────────────────────────────────
 
+
 def test_retry_after_is_floor():
     assert retry_delay_ms(1, 3000, 60_000, 0.0) == 3000
 
@@ -43,9 +44,11 @@ def test_parse_retry_after_forms():
 
 # ── 429 loop over the mocked transport (Retry-After: 0 → no timing) ─────────
 
+
 def test_429_retried_then_succeeds(httpx_mock, venue):
-    httpx_mock.add_response(url=f"{API_BASE}status", status_code=429,
-        headers={"Retry-After": "0"}, json={"error": "Rate limit exceeded"})
+    httpx_mock.add_response(
+        url=f"{API_BASE}status", status_code=429, headers={"Retry-After": "0"}, json={"error": "Rate limit exceeded"}
+    )
     httpx_mock.add_response(url=f"{API_BASE}status", json={"name": "v", "did": "did:key:z1"})
     status = venue.status()
     assert status.name == "v"
@@ -54,8 +57,12 @@ def test_429_retried_then_succeeds(httpx_mock, venue):
 
 def test_429_exhaustion_raises_rate_limit_error(httpx_mock, venue):
     for _ in range(4):  # 1 try + 3 retries
-        httpx_mock.add_response(url=f"{API_BASE}status", status_code=429,
-            headers={"Retry-After": "0"}, json={"error": "Rate limit exceeded"})
+        httpx_mock.add_response(
+            url=f"{API_BASE}status",
+            status_code=429,
+            headers={"Retry-After": "0"},
+            json={"error": "Rate limit exceeded"},
+        )
     with pytest.raises(RateLimitError) as exc:
         venue.status()
     assert exc.value.retry_after_seconds >= 1
@@ -64,41 +71,47 @@ def test_429_exhaustion_raises_rate_limit_error(httpx_mock, venue):
 
 # ── job-free agent reads (#180) ─────────────────────────────────────────────
 
+
 def test_agents_list_uses_get(httpx_mock, venue):
-    httpx_mock.add_response(url=f"{API_BASE}agents?includeTerminated=true",
-        json={"agents": [{"agentId": "a1", "status": "SLEEPING", "tasks": 0}]})
+    httpx_mock.add_response(
+        url=f"{API_BASE}agents?includeTerminated=true",
+        json={"agents": [{"agentId": "a1", "status": "SLEEPING", "tasks": 0}]},
+    )
     result = venue.agents.list(include_terminated=True)
     assert result.agents[0].agentId == "a1"
     sent = httpx_mock.get_requests()[-1]
-    assert sent.method == "GET"           # no job path
+    assert sent.method == "GET"  # no job path
     assert "/api/v1/agents" in str(sent.url)
 
 
 def test_agents_info_uses_get_and_falls_back_on_404(httpx_mock, venue):
-    httpx_mock.add_response(url=f"{API_BASE}agents/a1",
-        json={"agentId": "a1", "status": "SLEEPING", "tasks": 0})
+    httpx_mock.add_response(url=f"{API_BASE}agents/a1", json={"agentId": "a1", "status": "SLEEPING", "tasks": 0})
     info = venue.agents.info("a1")
     assert info.agentId == "a1"
 
     # Old venue: GET 404s once → falls back to the invoke path, remembered.
-    httpx_mock.add_response(url=f"{API_BASE}agents/a2", status_code=404,
-        json={"error": "not found"})
-    httpx_mock.add_response(url=f"{API_BASE}invoke", status_code=201, json={
-        "id": "j1", "status": "COMPLETE", "output": {"agentId": "a2", "status": "SLEEPING"}})
+    httpx_mock.add_response(url=f"{API_BASE}agents/a2", status_code=404, json={"error": "not found"})
+    httpx_mock.add_response(
+        url=f"{API_BASE}invoke",
+        status_code=201,
+        json={"id": "j1", "status": "COMPLETE", "output": {"agentId": "a2", "status": "SLEEPING"}},
+    )
     info2 = venue.agents.info("a2")
     assert info2.agentId == "a2"
     # Subsequent reads skip the GET probe entirely (invoke path directly).
-    httpx_mock.add_response(url=f"{API_BASE}invoke", status_code=201, json={
-        "id": "j2", "status": "COMPLETE", "output": {"agents": []}})
+    httpx_mock.add_response(
+        url=f"{API_BASE}invoke", status_code=201, json={"id": "j2", "status": "COMPLETE", "output": {"agents": []}}
+    )
     venue.agents.list()
-    assert not any("/agents?" in str(r.url) or str(r.url).endswith("/agents")
-                   for r in httpx_mock.get_requests()[-1:])
+    assert not any("/agents?" in str(r.url) or str(r.url).endswith("/agents") for r in httpx_mock.get_requests()[-1:])
 
 
 # ── UCAN minting shapes ─────────────────────────────────────────────────────
 
+
 def _decode(jwt_str: str) -> dict:
     import base64
+
     payload = jwt_str.split(".")[1]
     payload += "=" * (-len(payload) % 4)
     return json.loads(base64.urlsafe_b64decode(payload))
@@ -117,11 +130,11 @@ def test_ucan_minting_shapes():
     ident = _decode(identity_token(kp, venue_did, 300))
     assert ident["iss"] == did_for(kp)
     assert ident["aud"] == venue_did
-    assert ident["att"] == []             # pure identity — grants nothing
+    assert ident["att"] == []  # pure identity — grants nothing
 
     g = _decode(grant(kp, "did:key:z6MkBob", "did:key:zAlice/w/shared/", "crud/read", 3600))
     assert g["att"] == [{"with": "did:key:zAlice/w/shared/", "can": "crud/read"}]
-    assert "prf" not in g                 # root grant
+    assert "prf" not in g  # root grant
 
     r = _decode(relay_delegation(kp, venue_did, 300, [{"with": "w/", "can": "crud/read"}]))
     assert r["att"][0] == {"with": did_for(kp), "can": VENUE_RELAY}
@@ -129,6 +142,5 @@ def test_ucan_minting_shapes():
 
     root = grant(kp, "did:key:z6MkBob", "w/", "crud", 3600)
     kp2 = Ed25519PrivateKey.generate()
-    leaf = _decode(create_ucan_jwt(kp2, "did:key:z6MkCarol",
-        [{"with": "w/shared/", "can": "crud/read"}], 3600, [root]))
-    assert leaf["prf"] == [root]          # chains embed parent JWTs
+    leaf = _decode(create_ucan_jwt(kp2, "did:key:z6MkCarol", [{"with": "w/shared/", "can": "crud/read"}], 3600, [root]))
+    assert leaf["prf"] == [root]  # chains embed parent JWTs

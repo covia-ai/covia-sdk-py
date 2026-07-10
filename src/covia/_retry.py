@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from email.utils import parsedate_to_datetime
 
-MAX_ATTEMPTS = 4          # 1 try + 3 retries
+MAX_ATTEMPTS = 4  # 1 try + 3 retries
 BASE_DELAY_MS = 200
 MAX_DELAY_MS = 10_000
 BUDGET_MS = 30_000

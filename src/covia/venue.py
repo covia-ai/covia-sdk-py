@@ -51,6 +51,7 @@ class Venue:
 
     def __init__(self, config: TransportConfig) -> None:
         self._client = CoviaHTTPClient(config)
+        self._private = False
         self._config = config
         self._agents: AgentManager | None = None
         self._secrets: SecretManager | None = None
@@ -294,6 +295,19 @@ class Venue:
     # Invoke / Run
     # ------------------------------------------------------------------
 
+    def set_private(self, enabled: bool) -> None:
+        """Put this connection in **private-jobs mode** (covia #192): every
+        subsequent :meth:`run` executes as a memory-only job — never persisted
+        to the venue's job index, no durable record, gone on venue restart.
+        Requires ``enablePrivateJobs`` on the venue.
+
+        Because a completed private job is immediately forgotten, results are
+        collected through the invoke ``wait`` window rather than polling — so
+        private mode works with :meth:`run`; a poll-style :meth:`invoke`
+        raises.
+        """
+        self._private = enabled
+
     def invoke(self, operation: str, input: Any = None, *, ucans: list[str] | None = None) -> Job:
         """Invoke an operation, returning a Job for tracking.
 
@@ -314,6 +328,12 @@ class Venue:
         Returns:
             A :class:`~covia.job.Job` instance for tracking execution.
         """
+        if self._private:
+            raise CoviaError(
+                "Private-jobs mode requires run(): a completed private job is "
+                "immediately forgotten by the venue, so a poll-style Job cannot "
+                "collect its result."
+            )
         job_data = self._client.invoke(operation, input, ucans=ucans)
         return Job(data=job_data, venue=self)
 
@@ -344,6 +364,20 @@ class Venue:
             JobFailedError: If the job finishes with a non-COMPLETE status.
             CoviaTimeoutError: If the timeout is exceeded.
         """
+        if self._private:
+            # Memory-only job (covia #192): the result is collected through the
+            # invoke wait window — a completed private job is immediately
+            # forgotten, so polling cannot be used.
+            wait: bool | int = int(timeout * 1000) if timeout else True
+            job_data = self._client.invoke(operation, input, ucans=ucans, private=True, wait=wait)
+            job = Job(data=job_data, venue=self)
+            if job.is_finished:
+                return job.output
+            raise CoviaTimeoutError(
+                f"Private job {job_data.id} did not finish within the wait window; "
+                "its result cannot be collected by polling (private jobs are "
+                "forgotten on completion). Use a longer timeout or a non-private run."
+            )
         job = self.invoke(operation, input, ucans=ucans)
         job.wait(timeout=timeout)
         return job.output

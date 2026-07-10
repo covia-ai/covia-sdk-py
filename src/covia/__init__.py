@@ -61,6 +61,7 @@ from covia.models import (
     SecretSetResult,
     UCANAttenuation,
     UCANIssueResult,
+    UCANVerifyResult,
     VenueStatus,
     WorkspaceAggregateResult,
     WorkspaceAppendResult,
@@ -166,6 +167,7 @@ __all__ = [
     # UCAN + Secret models
     "UCANAttenuation",
     "UCANIssueResult",
+    "UCANVerifyResult",
     "SecretSetResult",
     "SecretExtractResult",
     # Exceptions

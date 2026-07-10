@@ -110,7 +110,7 @@ def test_info(httpx_mock, venue):
     assert result.timelineLength == 3
     assert result.tasks == 1
     sent = httpx_mock.get_requests()[-1]
-    assert sent.method == "GET"           # job-free — no invoke, no job
+    assert sent.method == "GET"  # job-free — no invoke, no job
     assert str(sent.url).endswith("/api/v1/agents/agent-a")
 
 
