@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import AsyncIterator
 from typing import Any
@@ -9,6 +10,7 @@ from typing import Any
 import httpx
 from httpx_sse import aconnect_sse
 
+from covia._retry import BUDGET_MS, parse_retry_after_ms, retry_delay_ms
 from covia._sse import SSEEvent
 from covia._transport import TransportConfig
 from covia.exceptions import (
@@ -17,6 +19,7 @@ from covia.exceptions import (
     CoviaTimeoutError,
     GridError,
     JobNotFoundError,
+    RateLimitError,
 )
 from covia.models import (
     AgentCard,
@@ -196,6 +199,14 @@ class AsyncCoviaHTTPClient:
     # Values — job-free lattice reads (covia #177)
     # ------------------------------------------------------------------
 
+    async def get_agents(self, suffix: str, params: dict[str, Any]) -> dict[str, Any]:
+        """``GET /api/v1/agents{suffix}`` — the job-free agent read transport
+        (covia #180) behind ``agents.list``/``agents.info``. Creates no Job."""
+        clean = {k: v for k, v in params.items() if v is not None}
+        resp = await self._request("GET", f"agents{suffix}", params=clean)
+        result: dict[str, Any] = resp.json()
+        return result
+
     async def get_value(self, op: str, params: dict[str, Any]) -> dict[str, Any]:
         """``GET /api/v1/values/{op}`` — a synchronous, capability-checked lattice
         read that creates **no Job** (unlike the invoke path). ``None`` params are
@@ -267,34 +278,64 @@ class AsyncCoviaHTTPClient:
     async def _request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
         """Make an API request (relative to the /api/v1/ base)."""
         await self._apply_auth(kwargs)
-        logger.debug("%s %s", method, path)
-        try:
-            response = await self._client.request(method, path, **kwargs)
-        except httpx.ConnectError as exc:
-            logger.debug("Connection failed: %s %s — %s", method, path, exc)
-            raise CoviaConnectionError(str(exc)) from exc
-        except httpx.TimeoutException as exc:
-            logger.debug("Request timed out: %s %s — %s", method, path, exc)
-            raise CoviaTimeoutError(str(exc)) from exc
-        logger.debug("%s %s → %d", method, path, response.status_code)
-        self._handle_error(response)
-        return response
+        import random as _random
+        import time as _time
+        deadline_ms = _time.monotonic() * 1000 + BUDGET_MS
+        attempt = 0
+        while True:
+            attempt += 1
+            logger.debug("%s %s", method, path)
+            try:
+                response = await self._client.request(method, path, **kwargs)
+            except httpx.ConnectError as exc:
+                logger.debug("Connection failed: %s %s — %s", method, path, exc)
+                raise CoviaConnectionError(str(exc)) from exc
+            except httpx.TimeoutException as exc:
+                logger.debug("Request timed out: %s %s — %s", method, path, exc)
+                raise CoviaTimeoutError(str(exc)) from exc
+            logger.debug("%s %s → %d", method, path, response.status_code)
+            # 429 backpressure: refused before any effect — retry per policy.
+            if response.status_code == 429:
+                now_ms = _time.monotonic() * 1000
+                retry_after_ms = parse_retry_after_ms(response.headers.get("Retry-After"), _time.time() * 1000)
+                delay_ms = retry_delay_ms(attempt, retry_after_ms, deadline_ms - now_ms, _random.random())
+                if delay_ms >= 0:
+                    logger.debug("429 from %s; retrying in %dms (attempt %d)", path, delay_ms, attempt)
+                    await asyncio.sleep(delay_ms / 1000)
+                    continue
+            self._handle_error(response)
+            return response
 
     async def _raw_request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
         """Make a request to an absolute URL (for discovery endpoints)."""
         await self._apply_auth(kwargs)
-        logger.debug("%s %s", method, url)
-        try:
-            response = await self._client.request(method, url, **kwargs)
-        except httpx.ConnectError as exc:
-            logger.debug("Connection failed: %s %s — %s", method, url, exc)
-            raise CoviaConnectionError(str(exc)) from exc
-        except httpx.TimeoutException as exc:
-            logger.debug("Request timed out: %s %s — %s", method, url, exc)
-            raise CoviaTimeoutError(str(exc)) from exc
-        logger.debug("%s %s → %d", method, url, response.status_code)
-        self._handle_error(response)
-        return response
+        import random as _random
+        import time as _time
+        deadline_ms = _time.monotonic() * 1000 + BUDGET_MS
+        attempt = 0
+        while True:
+            attempt += 1
+            logger.debug("%s %s", method, url)
+            try:
+                response = await self._client.request(method, url, **kwargs)
+            except httpx.ConnectError as exc:
+                logger.debug("Connection failed: %s %s — %s", method, url, exc)
+                raise CoviaConnectionError(str(exc)) from exc
+            except httpx.TimeoutException as exc:
+                logger.debug("Request timed out: %s %s — %s", method, url, exc)
+                raise CoviaTimeoutError(str(exc)) from exc
+            logger.debug("%s %s → %d", method, url, response.status_code)
+            # 429 backpressure: refused before any effect — retry per policy.
+            if response.status_code == 429:
+                now_ms = _time.monotonic() * 1000
+                retry_after_ms = parse_retry_after_ms(response.headers.get("Retry-After"), _time.time() * 1000)
+                delay_ms = retry_delay_ms(attempt, retry_after_ms, deadline_ms - now_ms, _random.random())
+                if delay_ms >= 0:
+                    logger.debug("429 from %s; retrying in %dms (attempt %d)", url, delay_ms, attempt)
+                    await asyncio.sleep(delay_ms / 1000)
+                    continue
+            self._handle_error(response)
+            return response
 
     async def _resolve_audience(self) -> str | None:
         """The venue's DID, for audience-bound auth — resolved once and cached.
@@ -356,6 +397,12 @@ class AsyncCoviaHTTPClient:
         except Exception:
             body = None
             message = response.text
+        if response.status_code == 429:
+            try:
+                retry_after = max(1, int(float(response.headers.get("Retry-After", "1"))))
+            except ValueError:
+                retry_after = 1
+            raise RateLimitError(message, retry_after, response_body=body)
         raise GridError(
             status_code=response.status_code,
             message=message,

@@ -27,6 +27,18 @@ class GridError(CoviaError):
         super().__init__(f"HTTP {status_code}: {message}")
 
 
+class RateLimitError(GridError):
+    """HTTP 429 from the venue — a rate limit or concurrent-job cap.
+
+    Carries the server's Retry-After hint (seconds). Raised only after the
+    SDK's bounded automatic retries are exhausted.
+    """
+
+    def __init__(self, message: str, retry_after_seconds: int, response_body: object = None) -> None:
+        super().__init__(status_code=429, message=message, response_body=response_body)
+        self.retry_after_seconds = retry_after_seconds
+
+
 class CoviaConnectionError(CoviaError, ConnectionError):
     """Raised when the SDK cannot connect to the venue.
 

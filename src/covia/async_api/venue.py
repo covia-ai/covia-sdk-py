@@ -286,6 +286,11 @@ class AsyncVenue:
         await job.wait(timeout=timeout)
         return job.output
 
+    async def _get_agents(self, suffix: str, params: dict[str, Any]) -> dict[str, Any]:
+        """Internal: ``GET /api/v1/agents{suffix}`` — the job-free agent read
+        transport (covia #180) behind :attr:`agents`' ``list``/``info``."""
+        return await self._client.get_agents(suffix, params)
+
     async def _get_value(self, op: str, params: dict[str, Any]) -> dict[str, Any]:
         """Internal job-free read transport — see
         :meth:`Venue._get_value <covia.venue.Venue._get_value>`."""

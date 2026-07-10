@@ -348,6 +348,11 @@ class Venue:
         job.wait(timeout=timeout)
         return job.output
 
+    def _get_agents(self, suffix: str, params: dict[str, Any]) -> dict[str, Any]:
+        """Internal: ``GET /api/v1/agents{suffix}`` — the job-free agent read
+        transport (covia #180) behind :attr:`agents`' ``list``/``info``."""
+        return self._client.get_agents(suffix, params)
+
     def _get_value(self, op: str, params: dict[str, Any]) -> dict[str, Any]:
         """Internal: ``GET /api/v1/values/{op}`` — the job-free read transport
         (covia #177) behind :attr:`workspace`'s ``read``/``list``/``slice``/

@@ -31,6 +31,7 @@ from covia.exceptions import (
     JobFailedError,
     JobNotFoundError,
     NotFoundError,
+    RateLimitError,
 )
 from covia.grid import Grid
 from covia.job import Job
@@ -75,6 +76,7 @@ from covia.models import (
 from covia.secrets import SecretManager
 from covia.status import JobStatus
 from covia.ucan import UCANManager
+from covia.ucan_tokens import VENUE_RELAY, create_ucan_jwt, did_for, grant, identity_token, relay_delegation
 from covia.venue import Venue
 from covia.workspace import WorkspaceManager
 
@@ -103,6 +105,12 @@ __all__ = [
     "AgentManager",
     "SecretManager",
     "UCANManager",
+    "VENUE_RELAY",
+    "create_ucan_jwt",
+    "did_for",
+    "grant",
+    "identity_token",
+    "relay_delegation",
     "WorkspaceManager",
     # Auth
     "Auth",
@@ -167,6 +175,7 @@ __all__ = [
     "CoviaTimeoutError",
     "JobFailedError",
     "NotFoundError",
+    "RateLimitError",
     "AssetNotFoundError",
     "JobNotFoundError",
 ]

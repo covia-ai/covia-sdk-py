@@ -99,28 +99,26 @@ def test_chat_continues_session(httpx_mock, venue):
 
 
 def test_info(httpx_mock, venue):
+    # Job-free on covia >= 0.4: GET /api/v1/agents/{id} (covia #180).
     httpx_mock.add_response(
-        url=f"{API_BASE}invoke",
-        json=_complete({"agentId": "agent-a", "status": "RUNNING", "timelineLength": 3, "tasks": 1}),
-        status_code=201,
+        url=f"{API_BASE}agents/agent-a",
+        json={"agentId": "agent-a", "status": "RUNNING", "timelineLength": 3, "tasks": 1},
     )
     result = venue.agents.info("agent-a")
     assert result.agentId == "agent-a"
     assert result.status == "RUNNING"
     assert result.timelineLength == 3
     assert result.tasks == 1
-    import json
-
-    body = json.loads(httpx_mock.get_requests()[-1].content)
-    assert body["operation"] == "v/ops/agent/info"
-    assert body["input"] == {"agentId": "agent-a"}
+    sent = httpx_mock.get_requests()[-1]
+    assert sent.method == "GET"           # job-free — no invoke, no job
+    assert str(sent.url).endswith("/api/v1/agents/agent-a")
 
 
 def test_list(httpx_mock, venue):
+    # Job-free on covia >= 0.4: GET /api/v1/agents (covia #180).
     httpx_mock.add_response(
-        url=f"{API_BASE}invoke",
-        json=_complete({"agents": [{"agentId": "a", "status": "RUNNING", "tasks": 2}]}),
-        status_code=201,
+        url=f"{API_BASE}agents",
+        json={"agents": [{"agentId": "a", "status": "RUNNING", "tasks": 2}]},
     )
     result = venue.agents.list()
     assert isinstance(result, AgentListResult)

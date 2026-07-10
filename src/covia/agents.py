@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Protocol
 
+from covia.exceptions import GridError, NotFoundError
 from covia.models import (
     AgentChatResult,
     AgentCompleteTaskResult,
@@ -35,10 +36,12 @@ if TYPE_CHECKING:
 
 class _SyncInvoker(Protocol):
     def run(self, operation: str, input: Any = None, *, timeout: float | None = None) -> Any: ...
+    def _get_agents(self, suffix: str, params: dict[str, Any]) -> dict[str, Any]: ...
 
 
 class _AsyncInvoker(Protocol):
     async def run(self, operation: str, input: Any = None, *, timeout: float | None = None) -> Any: ...
+    async def _get_agents(self, suffix: str, params: dict[str, Any]) -> dict[str, Any]: ...
 
 
 def _drop_none(d: dict[str, Any]) -> dict[str, Any]:
@@ -53,6 +56,8 @@ class AgentManager:
 
     def __init__(self, venue: _SyncInvoker) -> None:
         self._venue = venue
+        # GET /api/v1/agents support — flipped on the first 404 (pre-0.4 venue).
+        self._agents_get_supported = True
 
     def create(
         self,
@@ -125,13 +130,40 @@ class AgentManager:
         return AgentTriggerResult.model_validate(self._venue.run("v/ops/agent/trigger", {"agentId": agent_id}))
 
     def info(self, agent_id: str) -> AgentInfoResult:
-        """A lightweight status/config summary for an agent (``v/ops/agent/info``)."""
-        return AgentInfoResult.model_validate(self._venue.run("v/ops/agent/info", {"agentId": agent_id}))
+        """A lightweight status/config summary for an agent.
+
+        **Job-free** on covia ≥ 0.4 (``GET /api/v1/agents/{id}``, covia #180);
+        older venues transparently fall back to the invoke path (one probe,
+        remembered)."""
+        data = self._agents_get(f"/{agent_id}", {},
+            lambda: self._venue.run("v/ops/agent/info", {"agentId": agent_id}))
+        return AgentInfoResult.model_validate(data)
 
     def list(self, *, include_terminated: bool | None = None) -> AgentListResult:
-        """List agents on this venue."""
-        payload = _drop_none({"includeTerminated": include_terminated})
-        return AgentListResult.model_validate(self._venue.run("v/ops/agent/list", payload))
+        """List agents on this venue.
+
+        **Job-free** on covia ≥ 0.4 (``GET /api/v1/agents``, covia #180);
+        older venues transparently fall back to the invoke path."""
+        params = _drop_none({"includeTerminated": include_terminated})
+        data = self._agents_get("", params,
+            lambda: self._venue.run("v/ops/agent/list", params))
+        return AgentListResult.model_validate(data)
+
+    def _agents_get(self, suffix: str, params: dict[str, Any], fallback: Any) -> Any:
+        """A job-free agents GET, falling back to the invoke path on pre-0.4
+        venues — the GET surface 404s there, and only there (an unknown agent
+        id is a structured error, not a bare 404). The probe result is
+        remembered so old venues pay it once."""
+        if self._agents_get_supported:
+            try:
+                return self._venue._get_agents(suffix, params)
+            except NotFoundError:
+                self._agents_get_supported = False
+            except GridError as exc:
+                if exc.status_code != 404:
+                    raise
+                self._agents_get_supported = False
+        return fallback()
 
     def delete(self, agent_id: str, *, remove: bool | None = None) -> AgentDeleteResult:
         """Delete (or terminate) an agent."""
@@ -207,6 +239,8 @@ class AsyncAgentManager:
 
     def __init__(self, venue: _AsyncInvoker) -> None:
         self._venue = venue
+        # GET /api/v1/agents support — flipped on the first 404 (pre-0.4 venue).
+        self._agents_get_supported = True
 
     async def create(
         self,
@@ -254,11 +288,33 @@ class AsyncAgentManager:
         return AgentTriggerResult.model_validate(await self._venue.run("v/ops/agent/trigger", {"agentId": agent_id}))
 
     async def info(self, agent_id: str) -> AgentInfoResult:
-        return AgentInfoResult.model_validate(await self._venue.run("v/ops/agent/info", {"agentId": agent_id}))
+        """A lightweight status/config summary for an agent (job-free on
+        covia ≥ 0.4, covia #180; older venues fall back to the invoke path)."""
+        data = await self._agents_get(f"/{agent_id}", {},
+            lambda: self._venue.run("v/ops/agent/info", {"agentId": agent_id}))
+        return AgentInfoResult.model_validate(data)
 
     async def list(self, *, include_terminated: bool | None = None) -> AgentListResult:
-        payload = _drop_none({"includeTerminated": include_terminated})
-        return AgentListResult.model_validate(await self._venue.run("v/ops/agent/list", payload))
+        """List agents on this venue (job-free on covia ≥ 0.4, covia #180;
+        older venues fall back to the invoke path)."""
+        params = _drop_none({"includeTerminated": include_terminated})
+        data = await self._agents_get("", params,
+            lambda: self._venue.run("v/ops/agent/list", params))
+        return AgentListResult.model_validate(data)
+
+    async def _agents_get(self, suffix: str, params: dict[str, Any], fallback: Any) -> Any:
+        """A job-free agents GET, falling back to the invoke path on pre-0.4
+        venues (404 probe, remembered)."""
+        if self._agents_get_supported:
+            try:
+                return await self._venue._get_agents(suffix, params)
+            except NotFoundError:
+                self._agents_get_supported = False
+            except GridError as exc:
+                if exc.status_code != 404:
+                    raise
+                self._agents_get_supported = False
+        return await fallback()
 
     async def delete(self, agent_id: str, *, remove: bool | None = None) -> AgentDeleteResult:
         payload = _drop_none({"agentId": agent_id, "remove": remove})
