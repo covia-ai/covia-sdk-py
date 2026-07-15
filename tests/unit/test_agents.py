@@ -38,13 +38,15 @@ def test_create_surfaces_warnings(httpx_mock, venue):
     """Venue 0.5+ may attach non-fatal advisories to a successful create."""
     httpx_mock.add_response(
         url=f"{API_BASE}invoke",
-        json=_complete({
-            "agentId": "agent-w",
-            "status": "SLEEPING",
-            "created": True,
-            "updated": False,
-            "warnings": ["agent declares tools but its Ollama model 'gemma3' does not advertise tool-calling"],
-        }),
+        json=_complete(
+            {
+                "agentId": "agent-w",
+                "status": "SLEEPING",
+                "created": True,
+                "updated": False,
+                "warnings": ["agent declares tools but its Ollama model 'gemma3' does not advertise tool-calling"],
+            }
+        ),
         status_code=201,
     )
     result = venue.agents.create("agent-w", config={"tools": ["v/ops/covia/read"]})
