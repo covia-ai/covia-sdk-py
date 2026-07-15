@@ -137,6 +137,11 @@ class AgentCreateResult(BaseModel):
     agentId: str
     status: str
     created: bool
+    #: True when an existing record was updated in place (venue 0.4+).
+    updated: bool | None = None
+    #: Non-fatal advisories (venue 0.5+) — e.g. a model whose tool-calling
+    #: can't be confirmed, or declared tools that don't resolve on the venue.
+    warnings: list[str] | None = None
 
     model_config = {"extra": "allow"}
 
