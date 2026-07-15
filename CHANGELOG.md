@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0
+
+Targets Covia venue 0.5.0.
+
+### Added
+
+- `AgentCreateResult.updated` and `AgentCreateResult.warnings` — typed fields
+  for the venue 0.5 create advisories (non-tool-capable model, unresolvable
+  tools) and the 0.4 in-place-update flag.
+
 ## 0.4.0
 
 Targets Covia venue 0.4.0.
