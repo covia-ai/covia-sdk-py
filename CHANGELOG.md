@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.6.0
+
+Targets Covia venue 0.6.0.
+
+### Fixed
+
+- **`list_jobs()` accepts the 0.6.0 paged envelope** — venue 0.6.0 serves
+  `GET /api/v1/jobs` as `{items, total, offset, limit}` (covia #229) instead of
+  a flat id array; both the sync and async clients now handle either shape.
+
+Every other 0.6.0 surface is already covered: `AgentListResult` matches the
+enriched agent listings (#233), `stats` carries the new `jobs`/`userJobs`
+counts, and skills are ordinary assets read through `get_asset()` — no special
+handling.
+
 ## 0.5.0
 
 Targets Covia venue 0.5.0.
