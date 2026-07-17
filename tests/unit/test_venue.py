@@ -265,6 +265,15 @@ class TestVenueJobs:
         jobs = venue.list_jobs()
         assert len(jobs) == 2
 
+    def test_list_jobs_envelope(self, httpx_mock, venue):
+        # Venue 0.6.0 paged envelope (covia#229) — same call, same result.
+        httpx_mock.add_response(
+            url=f"{API_BASE}jobs",
+            json={"items": ["job001", "job002"], "total": 2, "offset": 0, "limit": 1000},
+        )
+        jobs = venue.list_jobs()
+        assert jobs == ["job001", "job002"]
+
     def test_cancel_job(self, httpx_mock, venue):
         httpx_mock.add_response(
             url=f"{API_BASE}jobs/job001/cancel",

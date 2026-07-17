@@ -150,10 +150,16 @@ class AsyncCoviaHTTPClient:
         return JobData.model_validate(resp.json())
 
     async def list_jobs(self) -> list[str]:
-        """``GET /api/v1/jobs``"""
-        resp = await self._request("GET", "jobs")
-        result: list[str] = resp.json()
-        return result
+        """``GET /api/v1/jobs``
+
+        Venue 0.6.0 returns a paged ``{items, total, offset, limit}`` envelope
+        (covia#229); earlier venues return a flat id array. Accept both.
+        """
+        body = (await self._request("GET", "jobs")).json()
+        if isinstance(body, list):
+            return body
+        items = body.get("items") if isinstance(body, dict) else None
+        return items if isinstance(items, list) else []
 
     async def cancel_job(self, job_id: str) -> JobData:
         """``PUT /api/v1/jobs/{id}/cancel``"""
