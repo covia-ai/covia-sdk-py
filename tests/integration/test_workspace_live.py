@@ -27,7 +27,7 @@ pytest.importorskip("jwt", reason="integration tests need the 'signing' extra")
 from covia import Grid, Namespace, UCANAttenuation, did_url  # noqa: E402
 from covia.auth import Ed25519Auth  # noqa: E402
 
-VENUE_URL = os.environ.get("COVIA_VENUE_URL", "https://venue-3.covia.ai")
+VENUE_URL = os.environ.get("COVIA_VENUE_URL", "https://venue-4.covia.ai")
 
 pytestmark = pytest.mark.integration
 
