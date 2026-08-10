@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.0
+
+Targets Covia venue 0.9.0.
+
+### Changed
+
+- **UCAN minting emits the Convex UCAN JWT profile** — `ucv` claim and
+  always-present `prf`; `exp` is always present and may be `None` for a
+  non-expiring token. Required by venues on Convex 0.8.11+ (#5)
+
 ## 0.6.0
 
 Targets Covia venue 0.6.0.
