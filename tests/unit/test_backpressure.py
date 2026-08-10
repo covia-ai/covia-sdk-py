@@ -131,10 +131,12 @@ def test_ucan_minting_shapes():
     assert ident["iss"] == did_for(kp)
     assert ident["aud"] == venue_did
     assert ident["att"] == []  # pure identity — grants nothing
+    assert ident["ucv"] == "0.10.0"  # Convex UCAN JWT profile (0.8.11+)
+    assert ident["prf"] == []  # prf must be present, even for roots
 
     g = _decode(grant(kp, "did:key:z6MkBob", "did:key:zAlice/w/shared/", "crud/read", 3600))
     assert g["att"] == [{"with": "did:key:zAlice/w/shared/", "can": "crud/read"}]
-    assert "prf" not in g  # root grant
+    assert g["prf"] == []  # root grant — present and empty per the profile
 
     r = _decode(relay_delegation(kp, venue_did, 300, [{"with": "w/", "can": "crud/read"}]))
     assert r["att"][0] == {"with": did_for(kp), "can": VENUE_RELAY}
@@ -144,3 +146,9 @@ def test_ucan_minting_shapes():
     kp2 = Ed25519PrivateKey.generate()
     leaf = _decode(create_ucan_jwt(kp2, "did:key:z6MkCarol", [{"with": "w/shared/", "can": "crud/read"}], 3600, [root]))
     assert leaf["prf"] == [root]  # chains embed parent JWTs
+
+    # exp is always present: an integer for bounded tokens, explicit null for
+    # non-expiring (UCAN v0.10.0 — an absent exp is malformed).
+    assert isinstance(ident["exp"], int)
+    forever = _decode(create_ucan_jwt(kp, "did:key:z6MkBob", [{"with": "w/", "can": "crud/read"}], None))
+    assert "exp" in forever and forever["exp"] is None

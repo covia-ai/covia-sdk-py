@@ -34,22 +34,31 @@ def did_for(private_key: Ed25519PrivateKey) -> str:
     return _public_key_to_did_key(raw)
 
 
+#: The Convex UCAN JWT profile version emitted in the ``ucv`` claim.
+UCV_VERSION = "0.10.0"
+
+
 def create_ucan_jwt(
     private_key: Ed25519PrivateKey,
     audience_did: str,
     att: list[dict[str, Any]],
-    lifetime_seconds: int,
+    lifetime_seconds: int | None,
     proofs: list[str] | None = None,
 ) -> str:
-    """Mint a UCAN as an EdDSA JWT: ``{iss, aud, att, exp[, prf]}`` signed by
-    ``private_key`` (``iss`` = its did:key).
+    """Mint a UCAN as an EdDSA JWT in the Convex UCAN JWT profile:
+    ``{iss, aud, ucv, att, prf, exp}`` signed by ``private_key`` (``iss`` = its
+    did:key). From Convex 0.8.11 venues parse only this profile: the ``ucv``
+    claim and the ``att``/``prf`` arrays are always present, and the ``exp``
+    key is always present — explicitly ``null`` for a non-expiring token
+    (UCAN v0.10.0; an absent ``exp`` is malformed).
 
     Args:
         private_key: The issuer's Ed25519 private key.
         audience_did: Who receives the token (``aud``).
         att: Capabilities delegated (``[{"with": ..., "can": ...}]``; empty
             list = pure identity token).
-        lifetime_seconds: Validity window.
+        lifetime_seconds: Validity window, or ``None`` for a non-expiring
+            token (``exp: null``).
         proofs: Parent UCAN JWT strings (``prf``) for delegation chains.
     """
     _check_signing_deps()
@@ -58,11 +67,11 @@ def create_ucan_jwt(
     claims: dict[str, Any] = {
         "iss": did_for(private_key),
         "aud": audience_did,
+        "ucv": UCV_VERSION,
         "att": att,
-        "exp": int(time.time()) + lifetime_seconds,
+        "prf": list(proofs) if proofs else [],
+        "exp": None if lifetime_seconds is None else int(time.time()) + lifetime_seconds,
     }
-    if proofs:
-        claims["prf"] = proofs
     token: str = pyjwt.encode(claims, private_key, algorithm="EdDSA")
     return token
 
