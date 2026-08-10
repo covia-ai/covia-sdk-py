@@ -10,6 +10,11 @@ Covia enables AI models, agents, and data to collaborate across organisational b
 pip install covia
 ```
 
+Python SDK release numbers mirror the published
+[`ai.covia:covia-core`](https://central.sonatype.com/artifact/ai.covia/covia-core)
+version line. Venue compatibility and any protocol migrations are recorded in
+the [changelog](CHANGELOG.md).
+
 ## Quick Start
 
 ```python

@@ -179,6 +179,10 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on push/PR to `master`:
 
 Releases are tag-driven: pushing a `vX.Y.Z` tag triggers `publish.yml` (CI → build → PyPI → GitHub Release). The publish job's `validate-tag` step requires the tag (minus the `v`) to equal `version` in `pyproject.toml` **exactly**.
 
+Python SDK release numbers mirror the published `ai.covia:covia-core` version
+line. A compatibility-only release may therefore advance the Python package
+version without runtime changes; document that explicitly in `CHANGELOG.md`.
+
 Checklist:
 
 1. On `develop`, bump `__version__` in `src/covia/__init__.py` (the single

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.9.0
+
+Targets Covia venue 0.9.0. This release intentionally mirrors the published
+`ai.covia:covia-core` 0.9.0 version line; there are no runtime changes from
+Python SDK 0.7.0.
+
+### Changed
+
+- Align the Python package version with `covia-core` so the Java and Python
+  client SDKs use the same release number. The Convex UCAN JWT profile support
+  required by venue 0.9.0 (`ucv`, always-present `prf`, nullable `exp`) remains
+  unchanged from 0.7.0.
+
 ## 0.7.0
 
 Targets Covia venue 0.9.0.
