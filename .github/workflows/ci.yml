@@ -40,7 +40,7 @@ jobs:
         if: matrix.python-version == '3.12'
         uses: codecov/codecov-action@v7
         with:
-          file: coverage.xml
+          files: coverage.xml
 
   integration-readonly:
     runs-on: ubuntu-latest
