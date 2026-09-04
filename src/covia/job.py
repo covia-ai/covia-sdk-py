@@ -156,7 +156,7 @@ class Job:
             logger.debug("Job %s polled → %s (delay=%.1fs)", self.id, self.status, delay)
             delay = min(delay * _BACKOFF_FACTOR, _MAX_POLL_DELAY)
 
-    def cancel(self) -> None:
+    def cancel(self, *, reason: str | None = None) -> None:
         """Cancel this job.
 
         Raises:
@@ -164,7 +164,7 @@ class Job:
         """
         if self.id is None:
             raise ValueError("Cannot cancel a job with no ID")
-        self._data = self._venue.cancel_job(self.id)
+        self._data = self._venue.cancel_job(self.id, reason=reason)
 
     def pause(self) -> None:
         """Pause this job, refreshing its local state.

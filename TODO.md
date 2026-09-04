@@ -47,18 +47,18 @@ exception. The polling loop in `job.py` retries on schedule, but `_client.py`
 request methods have no retry logic. Add configurable retries for idempotent GET
 requests and transient server errors.
 
-## 6. Integration tests are skeletal
+## 6. Integration coverage needs expansion
 
-Only 3 tests in `test_venue_live.py` with trivial assertions
-(`assert status is not None`). Missing coverage: invoke/run operations, job
-lifecycle (wait, cancel), asset content upload/download, SSE streaming, error
-paths, async API.
+CI now exercises read-only discovery against both the stable and development
+venues, plus authenticated workspace and UCAN round-trips on development.
+Still missing: job cancellation, asset content upload/download, SSE streaming,
+error paths, and async live coverage.
 
-## 7. No PyPI release workflow
+## 7. ~~No PyPI release workflow~~ DONE
 
-CI runs lint/test/typecheck but has no workflow for building and publishing to
-PyPI. Set up a GitHub Actions workflow with `hatch build` and `hatch publish`
-gated on tag/release events.
+Tag-driven trusted publishing builds and validates both distributions, uploads
+to PyPI, and creates the GitHub release. Package versions are checked against
+the tag before publication.
 
 ## 8. ~~Branch name mismatch~~ DONE
 

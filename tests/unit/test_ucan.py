@@ -10,13 +10,13 @@ from tests.conftest import VENUE_URL
 API_BASE = f"{VENUE_URL}/api/v1/"
 
 
-def _complete(output: object) -> dict[str, object]:
-    return {"id": "job-ucan", "status": "COMPLETE", "output": output}
+def _complete(output: object) -> object:
+    return output
 
 
 def test_issue_with_attenuation_models(httpx_mock, venue):
     httpx_mock.add_response(
-        url=f"{API_BASE}invoke",
+        url=f"{API_BASE}run",
         json=_complete({"token": "eyJ..."}),
         status_code=201,
     )
@@ -34,7 +34,7 @@ def test_issue_with_attenuation_models(httpx_mock, venue):
 
 def test_issue_with_raw_dicts(httpx_mock, venue):
     httpx_mock.add_response(
-        url=f"{API_BASE}invoke",
+        url=f"{API_BASE}run",
         json=_complete({"token": "eyJ..."}),
         status_code=201,
     )

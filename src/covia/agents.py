@@ -15,16 +15,23 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 from covia.exceptions import GridError, NotFoundError
 from covia.models import (
+    AgentCancelTaskResult,
     AgentChatResult,
+    AgentCompactSessionResult,
     AgentCompleteTaskResult,
     AgentCreateResult,
     AgentDeleteResult,
+    AgentDeleteSessionResult,
     AgentFailTaskResult,
     AgentForkResult,
     AgentInfoResult,
     AgentListResult,
     AgentMessageResult,
+    AgentReloadContextResult,
+    AgentRenameSessionResult,
     AgentRequestResult,
+    AgentSessionReadResult,
+    AgentSessionsResult,
     AgentSuspendResult,
     AgentTriggerResult,
 )
@@ -32,6 +39,8 @@ from covia.models import (
 if TYPE_CHECKING:
     from covia.async_api.venue import AsyncVenue
     from covia.venue import Venue
+
+_AgentConfig = dict[str, Any] | str | list[Any]
 
 
 class _SyncInvoker(Protocol):
@@ -46,6 +55,38 @@ class _AsyncInvoker(Protocol):
 
 def _drop_none(d: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in d.items() if v is not None}
+
+
+def _agent_request_timeout(wait: bool | float | None, timeout: float | None) -> int | None:
+    """Translate the legacy seconds-based ``wait`` option to 0.9.8's
+    millisecond ``timeout`` field."""
+    if wait is not None and timeout is not None:
+        raise ValueError("Pass either wait or timeout, not both")
+    value: bool | float | None = timeout if timeout is not None else wait
+    if value is None or value is True:
+        return None
+    if value is False:
+        return 0
+    if value < 0:
+        raise ValueError("timeout must be non-negative")
+    return int(value * 1000)
+
+
+def _agent_http_timeout(timeout_ms: int | None) -> float | None:
+    """Leave enough transport time to receive the operation's timeout snapshot."""
+    return None if timeout_ms is None else timeout_ms / 1000 + 5
+
+
+def _normalise_agent_list(data: Any) -> Any:
+    """Accept both full entries and the compact agent-id list served by GET."""
+    if isinstance(data, list):
+        data = {"agents": data}
+    if not isinstance(data, dict) or not isinstance(data.get("agents"), list):
+        return data
+    return {
+        **data,
+        "agents": [({"agentId": entry} if isinstance(entry, str) else entry) for entry in data["agents"]],
+    }
 
 
 class AgentManager:
@@ -63,17 +104,19 @@ class AgentManager:
         self,
         agent_id: str,
         *,
-        config: dict[str, Any] | None = None,
-        state: dict[str, Any] | None = None,
-        overwrite: bool | None = None,
+        definition: str | None = None,
+        config: _AgentConfig | None = None,
     ) -> AgentCreateResult:
-        """Create an agent with the given id and optional config/state."""
+        """Create an agent with an optional definition or layered config.
+
+        Covia 0.9.8 requires explicit delete-then-create when replacing an
+        agent; resolved config composition supplies any initial state.
+        """
         payload = _drop_none(
             {
                 "agentId": agent_id,
+                "definition": definition,
                 "config": config,
-                "state": state,
-                "overwrite": overwrite,
             }
         )
         return AgentCreateResult.model_validate(self._venue.run("v/ops/agent/create", payload))
@@ -81,20 +124,46 @@ class AgentManager:
     def request(
         self,
         agent_id: str,
-        input: Any = None,
+        input: dict[str, Any],
         *,
         wait: bool | float | None = None,
+        timeout: float | None = None,
+        session_id: str | None = None,
+        response_schema: dict[str, Any] | None = None,
+        strict: bool | None = None,
+        output_path: str | None = None,
+        loads: dict[str, Any] | None = None,
     ) -> AgentRequestResult:
         """Send a request to an agent.
 
         Args:
             agent_id: Target agent id.
             input: Request payload (shape is agent-specific).
-            wait: ``True`` or a timeout in seconds to wait for the agent to
-                respond. ``False`` or ``None`` returns immediately.
+            wait: Backward-compatible alias for ``timeout``. Numeric values
+                are seconds; ``False`` requests immediate submission.
+            timeout: Maximum seconds to wait for an answer.
+            session_id: Optional conversation session to continue.
+            response_schema: Optional JSON Schema for structured output.
+            strict: Require output to conform to ``response_schema``.
+            output_path: Optional workspace destination for the response.
+            loads: Optional session context entries keyed by source name.
         """
-        payload = _drop_none({"agentId": agent_id, "input": input, "wait": wait})
-        return AgentRequestResult.model_validate(self._venue.run("v/ops/agent/request", payload))
+        timeout_ms = _agent_request_timeout(wait, timeout)
+        payload = _drop_none(
+            {
+                "agentId": agent_id,
+                "input": input,
+                "timeout": timeout_ms,
+                "sessionId": session_id,
+                "responseSchema": response_schema,
+                "strict": strict,
+                "outputPath": output_path,
+                "loads": loads,
+            }
+        )
+        return AgentRequestResult.model_validate(
+            self._venue.run("v/ops/agent/request", payload, timeout=_agent_http_timeout(timeout_ms))
+        )
 
     def message(self, agent_id: str, message: Any) -> AgentMessageResult:
         """Deliver a fire-and-forget message to an agent."""
@@ -107,6 +176,8 @@ class AgentManager:
         agent_id: str,
         message: Any,
         session_id: str | None = None,
+        *,
+        loads: dict[str, Any] | None = None,
     ) -> AgentChatResult:
         """Send a message to an agent and block for its next response on the session.
 
@@ -119,10 +190,10 @@ class AgentManager:
         * An unknown ``session_id`` is rejected (the server will not silently
           mint one); omit the argument to start a new session.
 
-        Concurrency: only one chat may be in flight per session. Concurrent
-        calls on the same session are rejected by the venue.
+        Calls on the same session may run concurrently; each response reports
+        which message ids it answered in :attr:`AgentChatResult.answered`.
         """
-        payload = _drop_none({"agentId": agent_id, "message": message, "sessionId": session_id})
+        payload = _drop_none({"agentId": agent_id, "message": message, "sessionId": session_id, "loads": loads})
         return AgentChatResult.model_validate(self._venue.run("v/ops/agent/chat", payload))
 
     def trigger(self, agent_id: str) -> AgentTriggerResult:
@@ -133,7 +204,7 @@ class AgentManager:
         """A lightweight status/config summary for an agent.
 
         **Job-free** on covia ≥ 0.4 (``GET /api/v1/agents/{id}``, covia #180);
-        older venues transparently fall back to the invoke path (one probe,
+        older venues transparently fall back to the operation path (one probe,
         remembered)."""
         data = self._agents_get(f"/{agent_id}", {}, lambda: self._venue.run("v/ops/agent/info", {"agentId": agent_id}))
         return AgentInfoResult.model_validate(data)
@@ -142,13 +213,13 @@ class AgentManager:
         """List agents on this venue.
 
         **Job-free** on covia ≥ 0.4 (``GET /api/v1/agents``, covia #180);
-        older venues transparently fall back to the invoke path."""
+        older venues transparently fall back to the operation path."""
         params = _drop_none({"includeTerminated": include_terminated})
         data = self._agents_get("", params, lambda: self._venue.run("v/ops/agent/list", params))
-        return AgentListResult.model_validate(data)
+        return AgentListResult.model_validate(_normalise_agent_list(data))
 
     def _agents_get(self, suffix: str, params: dict[str, Any], fallback: Any) -> Any:
-        """A job-free agents GET, falling back to the invoke path on pre-0.4
+        """A job-free agents GET, falling back to the operation path on pre-0.4
         venues — the GET surface 404s there, and only there (an unknown agent
         id is a structured error, not a bare 404). The probe result is
         remembered so old venues pay it once."""
@@ -156,9 +227,13 @@ class AgentManager:
             try:
                 return self._venue._get_agents(suffix, params)
             except NotFoundError:
+                if suffix:
+                    raise
                 self._agents_get_supported = False
             except GridError as exc:
                 if exc.status_code != 404:
+                    raise
+                if suffix:
                     raise
                 self._agents_get_supported = False
         return fallback()
@@ -181,26 +256,86 @@ class AgentManager:
         self,
         agent_id: str,
         *,
-        config: dict[str, Any] | None = None,
+        config: _AgentConfig | None = None,
         state: dict[str, Any] | None = None,
     ) -> Any:
         """Update an agent's config and/or state."""
         payload = _drop_none({"agentId": agent_id, "config": config, "state": state})
         return self._venue.run("v/ops/agent/update", payload)
 
-    def cancel_task(self, agent_id: str, task_id: str) -> Any:
+    def cancel_task(
+        self,
+        agent_id: str,
+        task_id: str,
+        *,
+        reason: str | None = None,
+    ) -> AgentCancelTaskResult:
         """Cancel a running task on an agent."""
-        return self._venue.run(
-            "v/ops/agent/cancel-task",
-            {"agentId": agent_id, "taskId": task_id},
+        return AgentCancelTaskResult.model_validate(
+            self._venue.run(
+                "v/ops/agent/cancel-task",
+                _drop_none({"agentId": agent_id, "taskId": task_id, "reason": reason}),
+            )
         )
+
+    def sessions(
+        self,
+        agent_id: str,
+        *,
+        offset: int | None = None,
+        limit: int | None = None,
+    ) -> AgentSessionsResult:
+        """List saved chat sessions for an agent."""
+        payload = _drop_none({"agentId": agent_id, "offset": offset, "limit": limit})
+        return AgentSessionsResult.model_validate(self._venue.run("v/ops/agent/sessions", payload))
+
+    def read_session(
+        self,
+        agent_id: str,
+        session_id: str | None = None,
+        *,
+        max_turns: int | None = None,
+        max_chars: int | None = None,
+        archive_depth: int | None = None,
+    ) -> AgentSessionReadResult:
+        """Read a saved chat session."""
+        payload = _drop_none(
+            {
+                "agentId": agent_id,
+                "sessionId": session_id,
+                "maxTurns": max_turns,
+                "maxChars": max_chars,
+                "archiveDepth": archive_depth,
+            }
+        )
+        return AgentSessionReadResult.model_validate(self._venue.run("v/ops/agent/session-read", payload))
+
+    def rename_session(self, agent_id: str, session_id: str, title: str | None = None) -> AgentRenameSessionResult:
+        """Rename a saved chat session."""
+        payload = _drop_none({"agentId": agent_id, "sessionId": session_id, "title": title})
+        return AgentRenameSessionResult.model_validate(self._venue.run("v/ops/agent/rename-session", payload))
+
+    def compact_session(self, agent_id: str, session_id: str, summary: str) -> AgentCompactSessionResult:
+        """Compact older turns in a saved chat session."""
+        payload = {"agentId": agent_id, "sessionId": session_id, "summary": summary}
+        return AgentCompactSessionResult.model_validate(self._venue.run("v/ops/agent/compact-session", payload))
+
+    def reload_context(self, agent_id: str, session_id: str) -> AgentReloadContextResult:
+        """Reload a chat session's context frames."""
+        payload = {"agentId": agent_id, "sessionId": session_id}
+        return AgentReloadContextResult.model_validate(self._venue.run("v/ops/agent/reload-context", payload))
+
+    def delete_session(self, agent_id: str, session_id: str) -> AgentDeleteSessionResult:
+        """Delete a saved chat session."""
+        payload = {"agentId": agent_id, "sessionId": session_id}
+        return AgentDeleteSessionResult.model_validate(self._venue.run("v/ops/agent/delete-session", payload))
 
     def fork(
         self,
         source_id: str,
         agent_id: str,
         *,
-        config: dict[str, Any] | None = None,
+        config: _AgentConfig | None = None,
         include_timeline: bool | None = None,
         overwrite: bool | None = None,
     ) -> AgentForkResult:
@@ -244,16 +379,14 @@ class AsyncAgentManager:
         self,
         agent_id: str,
         *,
-        config: dict[str, Any] | None = None,
-        state: dict[str, Any] | None = None,
-        overwrite: bool | None = None,
+        definition: str | None = None,
+        config: _AgentConfig | None = None,
     ) -> AgentCreateResult:
         payload = _drop_none(
             {
                 "agentId": agent_id,
+                "definition": definition,
                 "config": config,
-                "state": state,
-                "overwrite": overwrite,
             }
         )
         return AgentCreateResult.model_validate(await self._venue.run("v/ops/agent/create", payload))
@@ -261,12 +394,32 @@ class AsyncAgentManager:
     async def request(
         self,
         agent_id: str,
-        input: Any = None,
+        input: dict[str, Any],
         *,
         wait: bool | float | None = None,
+        timeout: float | None = None,
+        session_id: str | None = None,
+        response_schema: dict[str, Any] | None = None,
+        strict: bool | None = None,
+        output_path: str | None = None,
+        loads: dict[str, Any] | None = None,
     ) -> AgentRequestResult:
-        payload = _drop_none({"agentId": agent_id, "input": input, "wait": wait})
-        return AgentRequestResult.model_validate(await self._venue.run("v/ops/agent/request", payload))
+        timeout_ms = _agent_request_timeout(wait, timeout)
+        payload = _drop_none(
+            {
+                "agentId": agent_id,
+                "input": input,
+                "timeout": timeout_ms,
+                "sessionId": session_id,
+                "responseSchema": response_schema,
+                "strict": strict,
+                "outputPath": output_path,
+                "loads": loads,
+            }
+        )
+        return AgentRequestResult.model_validate(
+            await self._venue.run("v/ops/agent/request", payload, timeout=_agent_http_timeout(timeout_ms))
+        )
 
     async def message(self, agent_id: str, message: Any) -> AgentMessageResult:
         return AgentMessageResult.model_validate(
@@ -278,8 +431,10 @@ class AsyncAgentManager:
         agent_id: str,
         message: Any,
         session_id: str | None = None,
+        *,
+        loads: dict[str, Any] | None = None,
     ) -> AgentChatResult:
-        payload = _drop_none({"agentId": agent_id, "message": message, "sessionId": session_id})
+        payload = _drop_none({"agentId": agent_id, "message": message, "sessionId": session_id, "loads": loads})
         return AgentChatResult.model_validate(await self._venue.run("v/ops/agent/chat", payload))
 
     async def trigger(self, agent_id: str) -> AgentTriggerResult:
@@ -287,7 +442,7 @@ class AsyncAgentManager:
 
     async def info(self, agent_id: str) -> AgentInfoResult:
         """A lightweight status/config summary for an agent (job-free on
-        covia ≥ 0.4, covia #180; older venues fall back to the invoke path)."""
+        covia ≥ 0.4, covia #180; older venues fall back to the operation path)."""
         data = await self._agents_get(
             f"/{agent_id}", {}, lambda: self._venue.run("v/ops/agent/info", {"agentId": agent_id})
         )
@@ -295,21 +450,25 @@ class AsyncAgentManager:
 
     async def list(self, *, include_terminated: bool | None = None) -> AgentListResult:
         """List agents on this venue (job-free on covia ≥ 0.4, covia #180;
-        older venues fall back to the invoke path)."""
+        older venues fall back to the operation path)."""
         params = _drop_none({"includeTerminated": include_terminated})
         data = await self._agents_get("", params, lambda: self._venue.run("v/ops/agent/list", params))
-        return AgentListResult.model_validate(data)
+        return AgentListResult.model_validate(_normalise_agent_list(data))
 
     async def _agents_get(self, suffix: str, params: dict[str, Any], fallback: Any) -> Any:
-        """A job-free agents GET, falling back to the invoke path on pre-0.4
+        """A job-free agents GET, falling back to the operation path on pre-0.4
         venues (404 probe, remembered)."""
         if self._agents_get_supported:
             try:
                 return await self._venue._get_agents(suffix, params)
             except NotFoundError:
+                if suffix:
+                    raise
                 self._agents_get_supported = False
             except GridError as exc:
                 if exc.status_code != 404:
+                    raise
+                if suffix:
                     raise
                 self._agents_get_supported = False
         return await fallback()
@@ -329,24 +488,80 @@ class AsyncAgentManager:
         self,
         agent_id: str,
         *,
-        config: dict[str, Any] | None = None,
+        config: _AgentConfig | None = None,
         state: dict[str, Any] | None = None,
     ) -> Any:
         payload = _drop_none({"agentId": agent_id, "config": config, "state": state})
         return await self._venue.run("v/ops/agent/update", payload)
 
-    async def cancel_task(self, agent_id: str, task_id: str) -> Any:
-        return await self._venue.run(
-            "v/ops/agent/cancel-task",
-            {"agentId": agent_id, "taskId": task_id},
+    async def cancel_task(
+        self,
+        agent_id: str,
+        task_id: str,
+        *,
+        reason: str | None = None,
+    ) -> AgentCancelTaskResult:
+        return AgentCancelTaskResult.model_validate(
+            await self._venue.run(
+                "v/ops/agent/cancel-task",
+                _drop_none({"agentId": agent_id, "taskId": task_id, "reason": reason}),
+            )
         )
+
+    async def sessions(
+        self,
+        agent_id: str,
+        *,
+        offset: int | None = None,
+        limit: int | None = None,
+    ) -> AgentSessionsResult:
+        payload = _drop_none({"agentId": agent_id, "offset": offset, "limit": limit})
+        return AgentSessionsResult.model_validate(await self._venue.run("v/ops/agent/sessions", payload))
+
+    async def read_session(
+        self,
+        agent_id: str,
+        session_id: str | None = None,
+        *,
+        max_turns: int | None = None,
+        max_chars: int | None = None,
+        archive_depth: int | None = None,
+    ) -> AgentSessionReadResult:
+        payload = _drop_none(
+            {
+                "agentId": agent_id,
+                "sessionId": session_id,
+                "maxTurns": max_turns,
+                "maxChars": max_chars,
+                "archiveDepth": archive_depth,
+            }
+        )
+        return AgentSessionReadResult.model_validate(await self._venue.run("v/ops/agent/session-read", payload))
+
+    async def rename_session(
+        self, agent_id: str, session_id: str, title: str | None = None
+    ) -> AgentRenameSessionResult:
+        payload = _drop_none({"agentId": agent_id, "sessionId": session_id, "title": title})
+        return AgentRenameSessionResult.model_validate(await self._venue.run("v/ops/agent/rename-session", payload))
+
+    async def compact_session(self, agent_id: str, session_id: str, summary: str) -> AgentCompactSessionResult:
+        payload = {"agentId": agent_id, "sessionId": session_id, "summary": summary}
+        return AgentCompactSessionResult.model_validate(await self._venue.run("v/ops/agent/compact-session", payload))
+
+    async def reload_context(self, agent_id: str, session_id: str) -> AgentReloadContextResult:
+        payload = {"agentId": agent_id, "sessionId": session_id}
+        return AgentReloadContextResult.model_validate(await self._venue.run("v/ops/agent/reload-context", payload))
+
+    async def delete_session(self, agent_id: str, session_id: str) -> AgentDeleteSessionResult:
+        payload = {"agentId": agent_id, "sessionId": session_id}
+        return AgentDeleteSessionResult.model_validate(await self._venue.run("v/ops/agent/delete-session", payload))
 
     async def fork(
         self,
         source_id: str,
         agent_id: str,
         *,
-        config: dict[str, Any] | None = None,
+        config: _AgentConfig | None = None,
         include_timeline: bool | None = None,
         overwrite: bool | None = None,
     ) -> AgentForkResult:
@@ -391,17 +606,49 @@ class Agent:
         self.venue = venue
         self._agents: AgentManager = venue.agents
 
-    def request(self, input: Any = None, *, wait: bool | float | None = None) -> AgentRequestResult:
+    def request(
+        self,
+        input: dict[str, Any],
+        *,
+        wait: bool | float | None = None,
+        timeout: float | None = None,
+        session_id: str | None = None,
+        response_schema: dict[str, Any] | None = None,
+        strict: bool | None = None,
+        output_path: str | None = None,
+        loads: dict[str, Any] | None = None,
+    ) -> AgentRequestResult:
         """Send a request to this agent (see :meth:`AgentManager.request`)."""
-        return self._agents.request(self.id, input, wait=wait)
+        options = _drop_none(
+            {
+                "wait": wait,
+                "timeout": timeout,
+                "session_id": session_id,
+                "response_schema": response_schema,
+                "strict": strict,
+                "output_path": output_path,
+                "loads": loads,
+            }
+        )
+        return self._agents.request(self.id, input, **options)
 
     def message(self, message: Any) -> AgentMessageResult:
         """Deliver a fire-and-forget message to this agent."""
         return self._agents.message(self.id, message)
 
-    def chat(self, message: Any, session_id: str | None = None) -> AgentChatResult:
+    def chat(
+        self,
+        message: Any,
+        session_id: str | None = None,
+        *,
+        loads: dict[str, Any] | None = None,
+    ) -> AgentChatResult:
         """Send a message and block for this agent's next response on the session."""
-        return self._agents.chat(self.id, message, session_id)
+        return (
+            self._agents.chat(self.id, message, session_id, loads=loads)
+            if loads is not None
+            else self._agents.chat(self.id, message, session_id)
+        )
 
     def chat_session(self, session_id: str | None = None) -> ChatSession:
         """A :class:`ChatSession` bound to this agent (optionally resuming *session_id*)."""
@@ -426,21 +673,46 @@ class Agent:
     def update(
         self,
         *,
-        config: dict[str, Any] | None = None,
+        config: _AgentConfig | None = None,
         state: dict[str, Any] | None = None,
     ) -> Any:
         """Update this agent's config and/or state."""
         return self._agents.update(self.id, config=config, state=state)
 
-    def cancel_task(self, task_id: str) -> Any:
+    def cancel_task(self, task_id: str, *, reason: str | None = None) -> AgentCancelTaskResult:
         """Cancel a running task on this agent."""
-        return self._agents.cancel_task(self.id, task_id)
+        return (
+            self._agents.cancel_task(self.id, task_id, reason=reason)
+            if reason is not None
+            else self._agents.cancel_task(self.id, task_id)
+        )
+
+    def sessions(self, *, offset: int | None = None, limit: int | None = None) -> AgentSessionsResult:
+        """List this agent's saved chat sessions."""
+        return self._agents.sessions(self.id, offset=offset, limit=limit)
+
+    def read_session(
+        self,
+        session_id: str | None = None,
+        *,
+        max_turns: int | None = None,
+        max_chars: int | None = None,
+        archive_depth: int | None = None,
+    ) -> AgentSessionReadResult:
+        """Read one of this agent's saved chat sessions."""
+        return self._agents.read_session(
+            self.id,
+            session_id,
+            max_turns=max_turns,
+            max_chars=max_chars,
+            archive_depth=archive_depth,
+        )
 
     def fork(
         self,
         agent_id: str,
         *,
-        config: dict[str, Any] | None = None,
+        config: _AgentConfig | None = None,
         include_timeline: bool | None = None,
         overwrite: bool | None = None,
     ) -> Agent:
@@ -483,11 +755,47 @@ class ChatSession:
         """The active session id, or ``None`` before the first :meth:`send`."""
         return self._session_id
 
-    def send(self, message: Any) -> AgentChatResult:
+    def send(self, message: Any, *, loads: dict[str, Any] | None = None) -> AgentChatResult:
         """Send *message* on this session, capturing the session id from the reply."""
-        result = self.agent.chat(message, self._session_id)
+        result = self.agent.chat(message, self._session_id, loads=loads)
         self._session_id = result.sessionId
         return result
+
+    def read(
+        self,
+        *,
+        max_turns: int | None = None,
+        max_chars: int | None = None,
+        archive_depth: int | None = None,
+    ) -> AgentSessionReadResult:
+        """Read this session's saved messages."""
+        return self.agent.read_session(
+            self._require_session_id(),
+            max_turns=max_turns,
+            max_chars=max_chars,
+            archive_depth=archive_depth,
+        )
+
+    def rename(self, title: str | None = None) -> AgentRenameSessionResult:
+        """Rename this session."""
+        return self.agent._agents.rename_session(self.agent.id, self._require_session_id(), title)
+
+    def compact(self, summary: str) -> AgentCompactSessionResult:
+        """Compact older turns in this session."""
+        return self.agent._agents.compact_session(self.agent.id, self._require_session_id(), summary)
+
+    def reload_context(self) -> AgentReloadContextResult:
+        """Reload this session's context frames."""
+        return self.agent._agents.reload_context(self.agent.id, self._require_session_id())
+
+    def delete(self) -> AgentDeleteSessionResult:
+        """Delete this saved session."""
+        return self.agent._agents.delete_session(self.agent.id, self._require_session_id())
+
+    def _require_session_id(self) -> str:
+        if self._session_id is None:
+            raise ValueError("The session has no id; send a message first")
+        return self._session_id
 
 
 class AsyncAgent:
@@ -499,14 +807,44 @@ class AsyncAgent:
         self.venue = venue
         self._agents: AsyncAgentManager = venue.agents
 
-    async def request(self, input: Any = None, *, wait: bool | float | None = None) -> AgentRequestResult:
-        return await self._agents.request(self.id, input, wait=wait)
+    async def request(
+        self,
+        input: dict[str, Any],
+        *,
+        wait: bool | float | None = None,
+        timeout: float | None = None,
+        session_id: str | None = None,
+        response_schema: dict[str, Any] | None = None,
+        strict: bool | None = None,
+        output_path: str | None = None,
+        loads: dict[str, Any] | None = None,
+    ) -> AgentRequestResult:
+        options = _drop_none(
+            {
+                "wait": wait,
+                "timeout": timeout,
+                "session_id": session_id,
+                "response_schema": response_schema,
+                "strict": strict,
+                "output_path": output_path,
+                "loads": loads,
+            }
+        )
+        return await self._agents.request(self.id, input, **options)
 
     async def message(self, message: Any) -> AgentMessageResult:
         return await self._agents.message(self.id, message)
 
-    async def chat(self, message: Any, session_id: str | None = None) -> AgentChatResult:
-        return await self._agents.chat(self.id, message, session_id)
+    async def chat(
+        self,
+        message: Any,
+        session_id: str | None = None,
+        *,
+        loads: dict[str, Any] | None = None,
+    ) -> AgentChatResult:
+        if loads is None:
+            return await self._agents.chat(self.id, message, session_id)
+        return await self._agents.chat(self.id, message, session_id, loads=loads)
 
     def chat_session(self, session_id: str | None = None) -> AsyncChatSession:
         return AsyncChatSession(self, session_id)
@@ -526,19 +864,40 @@ class AsyncAgent:
     async def update(
         self,
         *,
-        config: dict[str, Any] | None = None,
+        config: _AgentConfig | None = None,
         state: dict[str, Any] | None = None,
     ) -> Any:
         return await self._agents.update(self.id, config=config, state=state)
 
-    async def cancel_task(self, task_id: str) -> Any:
-        return await self._agents.cancel_task(self.id, task_id)
+    async def cancel_task(self, task_id: str, *, reason: str | None = None) -> AgentCancelTaskResult:
+        if reason is None:
+            return await self._agents.cancel_task(self.id, task_id)
+        return await self._agents.cancel_task(self.id, task_id, reason=reason)
+
+    async def sessions(self, *, offset: int | None = None, limit: int | None = None) -> AgentSessionsResult:
+        return await self._agents.sessions(self.id, offset=offset, limit=limit)
+
+    async def read_session(
+        self,
+        session_id: str | None = None,
+        *,
+        max_turns: int | None = None,
+        max_chars: int | None = None,
+        archive_depth: int | None = None,
+    ) -> AgentSessionReadResult:
+        return await self._agents.read_session(
+            self.id,
+            session_id,
+            max_turns=max_turns,
+            max_chars=max_chars,
+            archive_depth=archive_depth,
+        )
 
     async def fork(
         self,
         agent_id: str,
         *,
-        config: dict[str, Any] | None = None,
+        config: _AgentConfig | None = None,
         include_timeline: bool | None = None,
         overwrite: bool | None = None,
     ) -> AsyncAgent:
@@ -572,7 +931,38 @@ class AsyncChatSession:
     def session_id(self) -> str | None:
         return self._session_id
 
-    async def send(self, message: Any) -> AgentChatResult:
-        result = await self.agent.chat(message, self._session_id)
+    async def send(self, message: Any, *, loads: dict[str, Any] | None = None) -> AgentChatResult:
+        result = await self.agent.chat(message, self._session_id, loads=loads)
         self._session_id = result.sessionId
         return result
+
+    async def read(
+        self,
+        *,
+        max_turns: int | None = None,
+        max_chars: int | None = None,
+        archive_depth: int | None = None,
+    ) -> AgentSessionReadResult:
+        return await self.agent.read_session(
+            self._require_session_id(),
+            max_turns=max_turns,
+            max_chars=max_chars,
+            archive_depth=archive_depth,
+        )
+
+    async def rename(self, title: str | None = None) -> AgentRenameSessionResult:
+        return await self.agent._agents.rename_session(self.agent.id, self._require_session_id(), title)
+
+    async def compact(self, summary: str) -> AgentCompactSessionResult:
+        return await self.agent._agents.compact_session(self.agent.id, self._require_session_id(), summary)
+
+    async def reload_context(self) -> AgentReloadContextResult:
+        return await self.agent._agents.reload_context(self.agent.id, self._require_session_id())
+
+    async def delete(self) -> AgentDeleteSessionResult:
+        return await self.agent._agents.delete_session(self.agent.id, self._require_session_id())
+
+    def _require_session_id(self) -> str:
+        if self._session_id is None:
+            raise ValueError("The session has no id; send a message first")
+        return self._session_id

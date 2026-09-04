@@ -1,11 +1,4 @@
-"""Tests for connection-level private-jobs mode (covia #192) and ucan verify.
-
-Deterministic — a mocked transport returns a terminal record from the single
-invoke request, mirroring the venue's ``wait`` window. Private mode must send
-``private``/``wait`` in the invoke body, collect the result from that one
-response (a completed private job is immediately forgotten — polling 404s),
-and refuse poll-style ``invoke``.
-"""
+"""Tests for private ``/run`` calls (covia 0.9.8) and UCAN verification."""
 
 from __future__ import annotations
 
@@ -13,19 +6,10 @@ import json
 
 import pytest
 
-from covia.exceptions import CoviaError, CoviaTimeoutError, JobFailedError
+from covia.exceptions import CoviaError
 from tests.conftest import VENUE_URL
 
 API_BASE = f"{VENUE_URL}/api/v1/"
-
-
-def _record(status: str, output: object = None, error: str | None = None) -> dict[str, object]:
-    rec: dict[str, object] = {"id": "job-private", "status": status}
-    if output is not None:
-        rec["output"] = output
-    if error is not None:
-        rec["error"] = error
-    return rec
 
 
 # ---------------------------------------------------------------------------
@@ -35,8 +19,8 @@ def _record(status: str, output: object = None, error: str | None = None) -> dic
 
 def test_private_run_single_request_no_polling(httpx_mock, venue):
     httpx_mock.add_response(
-        url=f"{API_BASE}invoke",
-        json=_record("COMPLETE", output={"echo": "hi"}),
+        url=f"{API_BASE}run",
+        json={"echo": "hi"},
         status_code=200,
     )
     venue.set_private(True)
@@ -44,45 +28,44 @@ def test_private_run_single_request_no_polling(httpx_mock, venue):
     assert result == {"echo": "hi"}
 
     requests = httpx_mock.get_requests()
-    assert len(requests) == 1, "private run must not poll — one invoke only"
+    assert len(requests) == 1, "private run must use one result-oriented request"
     body = json.loads(requests[0].content)
     assert body["private"] is True
-    assert body["wait"] is True
+    assert "wait" not in body
 
 
-def test_private_run_timeout_sends_wait_ms(httpx_mock, venue):
+def test_private_run_timeout_is_not_a_wire_field(httpx_mock, venue):
     httpx_mock.add_response(
-        url=f"{API_BASE}invoke",
-        json=_record("COMPLETE", output=42),
+        url=f"{API_BASE}run",
+        json=42,
         status_code=200,
     )
     venue.set_private(True)
     assert venue.run("v/test/ops/echo", {}, timeout=5.0) == 42
     body = json.loads(httpx_mock.get_requests()[0].content)
-    assert body["wait"] == 5000
+    assert "wait" not in body
 
 
-def test_private_run_failed_raises_job_failed(httpx_mock, venue):
+def test_per_call_private_does_not_change_connection_mode(httpx_mock, venue):
     httpx_mock.add_response(
-        url=f"{API_BASE}invoke",
-        json=_record("FAILED", error="boom"),
+        url=f"{API_BASE}run",
+        json="done",
+        status_code=200,
+    )
+    assert venue.run("v/test/ops/echo", {}, private=True) == "done"
+    assert json.loads(httpx_mock.get_requests()[0].content)["private"] is True
+    assert venue._private is False
+
+
+def test_per_call_non_private_overrides_connection_mode(httpx_mock, venue):
+    httpx_mock.add_response(
+        url=f"{API_BASE}run",
+        json="done",
         status_code=200,
     )
     venue.set_private(True)
-    with pytest.raises(JobFailedError):
-        venue.run("v/test/ops/fail", {})
-
-
-def test_private_run_unfinished_raises_timeout(httpx_mock, venue):
-    # Venue's wait window elapsed before completion — record still STARTED.
-    httpx_mock.add_response(
-        url=f"{API_BASE}invoke",
-        json=_record("STARTED"),
-        status_code=200,
-    )
-    venue.set_private(True)
-    with pytest.raises(CoviaTimeoutError, match="private"):
-        venue.run("v/test/ops/never", {}, timeout=0.1)
+    assert venue.run("v/test/ops/echo", {}, private=False) == "done"
+    assert "private" not in json.loads(httpx_mock.get_requests()[0].content)
 
 
 def test_private_invoke_raises_without_request(httpx_mock, venue):
@@ -95,7 +78,7 @@ def test_private_invoke_raises_without_request(httpx_mock, venue):
 def test_set_private_false_restores_normal_invoke(httpx_mock, venue):
     httpx_mock.add_response(
         url=f"{API_BASE}invoke",
-        json=_record("PENDING"),
+        json={"id": "job-private", "status": "PENDING"},
         status_code=201,
     )
     venue.set_private(True)
@@ -114,8 +97,8 @@ def test_set_private_false_restores_normal_invoke(httpx_mock, venue):
 
 async def test_async_private_run_single_request(httpx_mock, async_venue):
     httpx_mock.add_response(
-        url=f"{API_BASE}invoke",
-        json=_record("COMPLETE", output="done"),
+        url=f"{API_BASE}run",
+        json="done",
         status_code=200,
     )
     async_venue.set_private(True)
@@ -125,7 +108,7 @@ async def test_async_private_run_single_request(httpx_mock, async_venue):
     assert len(requests) == 1
     body = json.loads(requests[0].content)
     assert body["private"] is True
-    assert body["wait"] is True
+    assert "wait" not in body
 
 
 async def test_async_private_invoke_raises(httpx_mock, async_venue):
@@ -142,19 +125,15 @@ async def test_async_private_invoke_raises(httpx_mock, async_venue):
 
 def test_ucan_verify_shape(httpx_mock, venue):
     httpx_mock.add_response(
-        url=f"{API_BASE}invoke",
+        url=f"{API_BASE}run",
         json={
-            "id": "job-verify",
-            "status": "COMPLETE",
-            "output": {
-                "valid": True,
-                "iss": "did:key:zAlice",
-                "aud": "did:key:zBob",
-                "chainDepth": 0,
-                "rootIssuer": "did:key:zAlice",
-                "att": [{"with": "did:key:zAlice/w/shared/", "can": "crud/read", "rootAuthority": "owner"}],
-                "authorises": True,
-            },
+            "valid": True,
+            "iss": "did:key:zAlice",
+            "aud": "did:key:zBob",
+            "chainDepth": 0,
+            "rootIssuer": "did:key:zAlice",
+            "att": [{"with": "did:key:zAlice/w/shared/", "can": "crud/read", "rootAuthority": "owner"}],
+            "authorises": True,
         },
         status_code=201,
     )
@@ -177,12 +156,8 @@ def test_ucan_verify_shape(httpx_mock, venue):
 
 def test_ucan_verify_invalid_reason(httpx_mock, venue):
     httpx_mock.add_response(
-        url=f"{API_BASE}invoke",
-        json={
-            "id": "job-verify",
-            "status": "COMPLETE",
-            "output": {"valid": False, "reason": "token expired"},
-        },
+        url=f"{API_BASE}run",
+        json={"valid": False, "reason": "token expired"},
         status_code=201,
     )
     result = venue.ucan.verify("eyJ...")

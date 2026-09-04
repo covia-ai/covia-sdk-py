@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
 from covia import Agent, AgentListResult
 from covia.agents import AsyncAgent
 from covia.models import AgentChatResult
@@ -12,13 +14,13 @@ from tests.conftest import VENUE_URL
 API_BASE = f"{VENUE_URL}/api/v1/"
 
 
-def _complete(output: object) -> dict[str, object]:
-    return {"id": "job-agent", "status": "COMPLETE", "output": output}
+def _complete(output: object) -> object:
+    return output
 
 
 def test_create(httpx_mock, venue):
     httpx_mock.add_response(
-        url=f"{API_BASE}invoke",
+        url=f"{API_BASE}run",
         json=_complete({"agentId": "agent-a", "status": "CREATED", "created": True}),
         status_code=201,
     )
@@ -37,7 +39,7 @@ def test_create(httpx_mock, venue):
 def test_create_surfaces_warnings(httpx_mock, venue):
     """Venue 0.5+ may attach non-fatal advisories to a successful create."""
     httpx_mock.add_response(
-        url=f"{API_BASE}invoke",
+        url=f"{API_BASE}run",
         json=_complete(
             {
                 "agentId": "agent-w",
@@ -55,22 +57,77 @@ def test_create_surfaces_warnings(httpx_mock, venue):
     assert result.warnings and "gemma3" in result.warnings[0]
 
 
+def test_create_accepts_098_result_without_legacy_created_flag(httpx_mock, venue):
+    httpx_mock.add_response(
+        url=f"{API_BASE}run",
+        json={"agentId": "agent-a", "address": "g/agent-a", "status": "SLEEPING", "warnings": []},
+    )
+    result = venue.agents.create("agent-a")
+    assert result.created is None
+    assert result.address == "g/agent-a"
+
+
+def test_create_forwards_definition_reference(httpx_mock, venue):
+    httpx_mock.add_response(url=f"{API_BASE}run", json={"agentId": "agent-a", "status": "SLEEPING"})
+    venue.agents.create("agent-a", definition="a/definition-hash")
+    import json
+
+    body = json.loads(httpx_mock.get_requests()[-1].content)
+    assert body["input"] == {"agentId": "agent-a", "definition": "a/definition-hash"}
+
+
 def test_request(httpx_mock, venue):
     httpx_mock.add_response(
-        url=f"{API_BASE}invoke",
+        url=f"{API_BASE}run",
         json=_complete({"id": "req-1", "status": "DONE", "output": {"answer": 42}}),
         status_code=201,
     )
     result = venue.agents.request("agent-a", {"q": "hello"}, wait=5)
     assert result.id == "req-1"
     assert result.output == {"answer": 42}
+    import json
+
+    body = json.loads(httpx_mock.get_requests()[-1].content)
+    assert body["input"]["timeout"] == 5000
+    assert "wait" not in body["input"]
+
+
+def test_request_098_options_use_camel_case(httpx_mock, venue):
+    httpx_mock.add_response(
+        url=f"{API_BASE}run",
+        json={"agentId": "agent-a", "sessionId": "sess-1", "output": {"answer": 42}},
+    )
+    result = venue.agents.request(
+        "agent-a",
+        {"task": "question"},
+        timeout=2.5,
+        session_id="sess-1",
+        response_schema={"type": "object"},
+        strict=True,
+        output_path="w/results/latest",
+        loads={"w/context": {"budget": 2000}},
+    )
+    assert result.sessionId == "sess-1"
+    import json
+
+    body = json.loads(httpx_mock.get_requests()[-1].content)
+    assert body["input"] == {
+        "agentId": "agent-a",
+        "input": {"task": "question"},
+        "timeout": 2500,
+        "sessionId": "sess-1",
+        "responseSchema": {"type": "object"},
+        "strict": True,
+        "outputPath": "w/results/latest",
+        "loads": {"w/context": {"budget": 2000}},
+    }
 
 
 def test_request_tolerates_bare_result(httpx_mock, venue):
     # A synchronously-awaited agent that returns a bare result (no id/status
     # envelope) must still validate — id/status are optional.
     httpx_mock.add_response(
-        url=f"{API_BASE}invoke",
+        url=f"{API_BASE}run",
         json=_complete({"answer": 42}),
         status_code=201,
     )
@@ -80,9 +137,17 @@ def test_request_tolerates_bare_result(httpx_mock, venue):
     assert result.model_dump()["answer"] == 42
 
 
+def test_request_rejects_conflicting_or_negative_timeouts(httpx_mock, venue):
+    with pytest.raises(ValueError, match="either wait or timeout"):
+        venue.agents.request("agent-a", {"task": "x"}, wait=1, timeout=1)
+    with pytest.raises(ValueError, match="non-negative"):
+        venue.agents.request("agent-a", {"task": "x"}, timeout=-1)
+    assert httpx_mock.get_requests() == []
+
+
 def test_message(httpx_mock, venue):
     httpx_mock.add_response(
-        url=f"{API_BASE}invoke",
+        url=f"{API_BASE}run",
         json=_complete({"agentId": "agent-a", "delivered": True}),
         status_code=201,
     )
@@ -92,7 +157,7 @@ def test_message(httpx_mock, venue):
 
 def test_chat_first_call_omits_session_id(httpx_mock, venue):
     httpx_mock.add_response(
-        url=f"{API_BASE}invoke",
+        url=f"{API_BASE}run",
         json=_complete({"agentId": "agent-a", "sessionId": "sess-123", "response": "hello!"}),
         status_code=201,
     )
@@ -107,7 +172,7 @@ def test_chat_first_call_omits_session_id(httpx_mock, venue):
 
 def test_chat_continues_session(httpx_mock, venue):
     httpx_mock.add_response(
-        url=f"{API_BASE}invoke",
+        url=f"{API_BASE}run",
         json=_complete({"agentId": "agent-a", "sessionId": "sess-123", "response": "still here"}),
         status_code=201,
     )
@@ -117,6 +182,77 @@ def test_chat_continues_session(httpx_mock, venue):
 
     body = json.loads(httpx_mock.get_requests()[-1].content)
     assert body["input"]["sessionId"] == "sess-123"
+
+
+def test_chat_reports_answered_messages_and_loads(httpx_mock, venue):
+    httpx_mock.add_response(
+        url=f"{API_BASE}run",
+        json={
+            "agentId": "agent-a",
+            "address": "g/agent-a",
+            "sessionId": "sess-123",
+            "response": "done",
+            "answered": ["msg-1", "msg-2"],
+        },
+    )
+    result = venue.agents.chat("agent-a", "hi", loads={"w/context": {}})
+    assert result.answered == ["msg-1", "msg-2"]
+    import json
+
+    assert json.loads(httpx_mock.get_requests()[-1].content)["input"]["loads"] == {"w/context": {}}
+
+
+def test_session_lifecycle_operations(httpx_mock, venue):
+    responses = [
+        {
+            "sessions": [{"sessionId": "sess-1", "title": "Hello", "turnCount": 2}],
+            "count": 1,
+            "total": 1,
+            "offset": 0,
+        },
+        {"found": True, "sessionId": "sess-1", "messages": [{"role": "user"}], "turnCount": 1},
+        {"agentId": "agent-a", "sessionId": "sess-1", "title": "Renamed"},
+        {"agentId": "agent-a", "sessionId": "sess-1", "compacted": True, "archivedTurns": 2},
+        {"agentId": "agent-a", "sessionId": "sess-1", "reloaded": True, "frames": 3},
+        {"agentId": "agent-a", "sessionId": "sess-1", "deleted": True},
+    ]
+    for response in responses:
+        httpx_mock.add_response(url=f"{API_BASE}run", json=response)
+
+    assert venue.agents.sessions("agent-a", offset=0, limit=10).sessions[0].title == "Hello"
+    assert venue.agents.read_session("agent-a", "sess-1", max_turns=20, max_chars=8000, archive_depth=1).found is True
+    assert venue.agents.rename_session("agent-a", "sess-1", "Renamed").title == "Renamed"
+    assert venue.agents.compact_session("agent-a", "sess-1", "Remember the outcome").compacted is True
+    assert venue.agents.reload_context("agent-a", "sess-1").frames == 3
+    assert venue.agents.delete_session("agent-a", "sess-1").deleted is True
+
+    import json
+
+    bodies = [json.loads(request.content) for request in httpx_mock.get_requests()]
+    operations = [body["operation"] for body in bodies]
+    assert operations == [
+        "v/ops/agent/sessions",
+        "v/ops/agent/session-read",
+        "v/ops/agent/rename-session",
+        "v/ops/agent/compact-session",
+        "v/ops/agent/reload-context",
+        "v/ops/agent/delete-session",
+    ]
+    assert bodies[1]["input"] == {
+        "agentId": "agent-a",
+        "sessionId": "sess-1",
+        "maxTurns": 20,
+        "maxChars": 8000,
+        "archiveDepth": 1,
+    }
+    assert bodies[3]["input"]["summary"] == "Remember the outcome"
+
+
+def test_session_read_not_found_has_no_session_id(httpx_mock, venue):
+    httpx_mock.add_response(url=f"{API_BASE}run", json={"found": False})
+    result = venue.agents.read_session("agent-a")
+    assert result.found is False
+    assert result.sessionId is None
 
 
 def test_info(httpx_mock, venue):
@@ -149,7 +285,7 @@ def test_list(httpx_mock, venue):
 
 def test_delete(httpx_mock, venue):
     httpx_mock.add_response(
-        url=f"{API_BASE}invoke",
+        url=f"{API_BASE}run",
         json=_complete({"agentId": "agent-a", "status": "DELETED", "removed": True}),
         status_code=201,
     )
@@ -159,14 +295,14 @@ def test_delete(httpx_mock, venue):
 
 def test_suspend_resume(httpx_mock, venue):
     httpx_mock.add_response(
-        url=f"{API_BASE}invoke",
+        url=f"{API_BASE}run",
         json=_complete({"agentId": "agent-a", "status": "SUSPENDED"}),
         status_code=201,
     )
     assert venue.agents.suspend("agent-a").status == "SUSPENDED"
 
     httpx_mock.add_response(
-        url=f"{API_BASE}invoke",
+        url=f"{API_BASE}run",
         json=_complete({"agentId": "agent-a", "status": "RUNNING"}),
         status_code=201,
     )
@@ -175,7 +311,7 @@ def test_suspend_resume(httpx_mock, venue):
 
 def test_trigger(httpx_mock, venue):
     httpx_mock.add_response(
-        url=f"{API_BASE}invoke",
+        url=f"{API_BASE}run",
         json=_complete({"agentId": "agent-a", "status": "TRIGGERED", "result": None}),
         status_code=201,
     )
@@ -185,7 +321,7 @@ def test_trigger(httpx_mock, venue):
 
 def test_fork(httpx_mock, venue):
     httpx_mock.add_response(
-        url=f"{API_BASE}invoke",
+        url=f"{API_BASE}run",
         json=_complete({"agentId": "agent-b", "status": "CREATED", "created": True, "forkedFrom": "agent-a"}),
         status_code=201,
     )
@@ -201,7 +337,7 @@ def test_fork(httpx_mock, venue):
 
 def test_context(httpx_mock, venue):
     httpx_mock.add_response(
-        url=f"{API_BASE}invoke",
+        url=f"{API_BASE}run",
         json=_complete("rendered context"),
         status_code=201,
     )
@@ -216,7 +352,7 @@ def test_context(httpx_mock, venue):
 
 def test_complete_task(httpx_mock, venue):
     httpx_mock.add_response(
-        url=f"{API_BASE}invoke",
+        url=f"{API_BASE}run",
         json=_complete({"agentId": "agent-a", "taskId": "task-1", "status": "COMPLETE"}),
         status_code=201,
     )
@@ -231,7 +367,7 @@ def test_complete_task(httpx_mock, venue):
 
 def test_fail_task(httpx_mock, venue):
     httpx_mock.add_response(
-        url=f"{API_BASE}invoke",
+        url=f"{API_BASE}run",
         json=_complete({"agentId": "agent-a", "taskId": "task-1", "status": "FAILED"}),
         status_code=201,
     )
@@ -242,6 +378,18 @@ def test_fail_task(httpx_mock, venue):
     body = json.loads(httpx_mock.get_requests()[-1].content)
     assert body["operation"] == "v/ops/agent/fail-task"
     assert body["input"] == {"error": "boom"}
+
+
+def test_cancel_task_forwards_reason(httpx_mock, venue):
+    import json
+
+    httpx_mock.add_response(
+        url=f"{API_BASE}run",
+        json={"cancelled": True, "agentId": "agent-a", "taskId": "task-1"},
+    )
+    assert venue.agents.cancel_task("agent-a", "task-1", reason="superseded").cancelled is True
+    body = json.loads(httpx_mock.get_requests()[-1].content)
+    assert body["input"] == {"agentId": "agent-a", "taskId": "task-1", "reason": "superseded"}
 
 
 def test_lazy_manager_is_cached(venue):

@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.9.8
+
+Targets Covia venue 0.9.8.
+
+### Added
+
+- Agent request options for the 0.9.8 schema: millisecond wire-level
+  `timeout`, `sessionId`, `responseSchema`, `strict`, `outputPath`, and
+  `loads`. Python timeout arguments remain seconds; the legacy `wait` keyword
+  is retained as a compatibility alias.
+- Complete saved-session management for agents: list, read, rename, compact,
+  context reload, and delete, with typed result models and sync/async APIs.
+- Typed `address` and `answered` agent response fields, status
+  `version`/`ucanProfile`/`access` fields, and operation
+  `activityLabel`/`readOnly`/`internal` metadata.
+- Optional cancellation reasons for jobs and agent tasks.
+- Per-call private execution with `venue.run(..., private=True)`.
+
+### Changed
+
+- `venue.run()` now uses Covia's result-oriented `POST /api/v1/run` endpoint
+  directly. Its `timeout` controls the HTTP request; `invoke()` remains the
+  Job-handle API.
+- `venue.secrets.set()` sends `overwrite=False` by default, matching 0.9.8's
+  protection against accidental replacement. Pass `overwrite=True` to replace
+  an existing secret.
+- `list_jobs()` follows every page instead of returning only the first 1,000
+  job ids.
+- A missing individual agent no longer disables the job-free agent GET
+  transport for the rest of the connection.
+- Agent chat supports concurrent calls on one session and exposes the message
+  ids answered by each response.
+- Agent creation follows the immutable-name 0.9.8 contract: pass a definition
+  or layered config, and explicitly delete then create when replacing an
+  existing agent.
+
 ## 0.9.0
 
 Targets Covia venue 0.9.0. This release intentionally mirrors the published

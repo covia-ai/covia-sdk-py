@@ -16,6 +16,7 @@ from covia._transport import TransportConfig
 from covia.exceptions import (
     AssetNotFoundError,
     CoviaConnectionError,
+    CoviaError,
     CoviaTimeoutError,
     GridError,
     JobNotFoundError,
@@ -145,6 +146,33 @@ class CoviaHTTPClient:
         resp = self._request("POST", "invoke", json=body)
         return JobData.model_validate(resp.json())
 
+    def run(
+        self,
+        operation: str,
+        input: Any = None,
+        *,
+        ucans: list[str] | None = None,
+        private: bool = False,
+        timeout: float | None = None,
+    ) -> Any:
+        """``POST /api/v1/run`` — return the operation result directly.
+
+        Covia 0.9.8 accepts ``private: true`` here, guaranteeing a transient
+        Job wrapper even for lifecycle-bearing operations. The response is the
+        operation result itself rather than a Job record.
+        """
+        body: dict[str, Any] = {"operation": operation}
+        if input is not None:
+            body["input"] = input
+        if ucans:
+            body["ucans"] = list(ucans)
+        if private:
+            body["private"] = True
+        kwargs: dict[str, Any] = {"json": body}
+        if timeout is not None:
+            kwargs["timeout"] = timeout
+        return self._request("POST", "run", **kwargs).json()
+
     def get_job(self, job_id: str) -> JobData:
         """``GET /api/v1/jobs/{id}``"""
         resp = self._request_job("GET", f"jobs/{job_id}", job_id)
@@ -156,15 +184,46 @@ class CoviaHTTPClient:
         Venue 0.6.0 returns a paged ``{items, total, offset, limit}`` envelope
         (covia#229); earlier venues return a flat id array. Accept both.
         """
-        body = self._request("GET", "jobs").json()
-        if isinstance(body, list):
-            return body
-        items = body.get("items") if isinstance(body, dict) else None
-        return items if isinstance(items, list) else []
+        result: list[str] = []
+        offset = 0
+        total: int | None = None
+        while total is None or len(result) < total:
+            body = self._request("GET", "jobs", params={"offset": offset, "limit": 1000}).json()
+            if isinstance(body, list):
+                if not all(isinstance(item, str) for item in body):
+                    raise CoviaError("Venue returned an invalid jobs listing")
+                return body
+            if not isinstance(body, dict):
+                raise CoviaError("Venue returned an invalid jobs listing")
+            page = body.get("items")
+            page_total = body.get("total")
+            page_offset = body.get("offset")
+            if (
+                not isinstance(page, list)
+                or not all(isinstance(item, str) for item in page)
+                or not isinstance(page_total, int)
+                or page_total < 0
+                or not isinstance(page_offset, int)
+                or page_offset < 0
+            ):
+                raise CoviaError("Venue returned an invalid jobs page")
+            if total is None:
+                total = page_total
+            result.extend(page)
+            if not page:
+                break
+            next_offset = page_offset + len(page)
+            if next_offset <= offset:
+                raise CoviaError("Venue returned a jobs page that did not advance")
+            offset = next_offset
+        return result
 
-    def cancel_job(self, job_id: str) -> JobData:
+    def cancel_job(self, job_id: str, reason: str | None = None) -> JobData:
         """``PUT /api/v1/jobs/{id}/cancel``"""
-        resp = self._request_job("PUT", f"jobs/{job_id}/cancel", job_id)
+        kwargs: dict[str, Any] = {}
+        if reason is not None:
+            kwargs["json"] = {"reason": reason}
+        resp = self._request_job("PUT", f"jobs/{job_id}/cancel", job_id, **kwargs)
         return JobData.model_validate(resp.json())
 
     def delete_job(self, job_id: str) -> None:
@@ -230,7 +289,7 @@ class CoviaHTTPClient:
 
     def get_value(self, op: str, params: dict[str, Any]) -> dict[str, Any]:
         """``GET /api/v1/values/{op}`` — a synchronous, capability-checked lattice
-        read that creates **no Job** (unlike the invoke path). ``None`` params are
+        read that creates **no Job** (unlike the operation path). ``None`` params are
         dropped from the query string."""
         clean = {k: v for k, v in params.items() if v is not None}
         resp = self._request("GET", f"values/{op}", params=clean)

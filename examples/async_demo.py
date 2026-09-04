@@ -9,7 +9,7 @@ import os
 
 from covia.async_api import AsyncGrid
 
-VENUE_URL = os.environ.get("COVIA_VENUE_URL", "https://venue-3.covia.ai")
+VENUE_URL = os.environ.get("COVIA_VENUE_URL", "https://venue-4.covia.ai")
 
 
 async def main() -> None:

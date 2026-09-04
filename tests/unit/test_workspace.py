@@ -10,8 +10,8 @@ from tests.conftest import VENUE_URL
 API_BASE = f"{VENUE_URL}/api/v1/"
 
 
-def _complete(output: object) -> dict[str, object]:
-    return {"id": "job-ws", "status": "COMPLETE", "output": output}
+def _complete(output: object) -> object:
+    return output
 
 
 def _get(httpx_mock, result: object) -> None:
@@ -27,7 +27,7 @@ def test_cross_did_read_forwards_ucans(httpx_mock, venue):
     # Reading another DID's workspace: path built with did_url, proof passed
     # as ucans — the token must land in the top-level invoke envelope.
     httpx_mock.add_response(
-        url=f"{API_BASE}invoke",
+        url=f"{API_BASE}run",
         json=_complete({"exists": True, "value": {"shared": True}}),
         status_code=201,
     )
@@ -68,9 +68,9 @@ def test_read_with_max_size(httpx_mock, venue):
     assert req.url.params["maxSize"] == "100"
 
 
-def test_read_with_ucans_uses_invoke(httpx_mock, venue):
+def test_read_with_ucans_uses_run(httpx_mock, venue):
     # Proof tokens ride only on the invoke transport — a proof read falls back.
-    httpx_mock.add_response(url=f"{API_BASE}invoke", json=_complete({"exists": True}), status_code=201)
+    httpx_mock.add_response(url=f"{API_BASE}run", json=_complete({"exists": True}), status_code=201)
     venue.workspace.read("did:key:zA/w/shared", ucans=["eyJ.proof"])
     body = json.loads(httpx_mock.get_requests()[-1].content)
     assert body["operation"] == "v/ops/covia/read"
@@ -79,7 +79,7 @@ def test_read_with_ucans_uses_invoke(httpx_mock, venue):
 
 def test_write(httpx_mock, venue):
     httpx_mock.add_response(
-        url=f"{API_BASE}invoke",
+        url=f"{API_BASE}run",
         json=_complete({"existed": True}),
         status_code=201,
     )
@@ -89,7 +89,7 @@ def test_write(httpx_mock, venue):
 
 def test_delete(httpx_mock, venue):
     httpx_mock.add_response(
-        url=f"{API_BASE}invoke",
+        url=f"{API_BASE}run",
         json=_complete({"deleted": True}),
         status_code=201,
     )
@@ -99,7 +99,7 @@ def test_delete(httpx_mock, venue):
 
 def test_append(httpx_mock, venue):
     httpx_mock.add_response(
-        url=f"{API_BASE}invoke",
+        url=f"{API_BASE}run",
         json=_complete({"existed": False, "newSize": 1}),
         status_code=201,
     )
@@ -109,9 +109,9 @@ def test_append(httpx_mock, venue):
 
 
 def test_copy(httpx_mock, venue):
-    # copy is a write (read-then-write server-side) → invoke path, from/to input.
+    # copy is a write (read-then-write server-side) → operation path, from/to input.
     httpx_mock.add_response(
-        url=f"{API_BASE}invoke",
+        url=f"{API_BASE}run",
         json=_complete({"existed": False, "pathCreated": True}),
         status_code=201,
     )
@@ -131,10 +131,10 @@ def test_list(httpx_mock, venue):
     assert "/api/v1/values/list" in str(httpx_mock.get_requests()[-1].url)
 
 
-def test_list_root_uses_invoke(httpx_mock, venue):
+def test_list_root_uses_run(httpx_mock, venue):
     # The GET route requires a path; a root/undefined list stays on the op path.
     httpx_mock.add_response(
-        url=f"{API_BASE}invoke",
+        url=f"{API_BASE}run",
         json=_complete({"exists": True, "type": "map", "count": 1, "keys": ["w"]}),
         status_code=201,
     )
@@ -165,26 +165,26 @@ def test_read_0_2_x_value_bytes(httpx_mock, venue):
 
 def test_write_0_2_x_empty(httpx_mock, venue):
     # Overwrite into existing structure → empty object; must not raise.
-    httpx_mock.add_response(url=f"{API_BASE}invoke", json=_complete({}), status_code=201)
+    httpx_mock.add_response(url=f"{API_BASE}run", json=_complete({}), status_code=201)
     result = venue.workspace.write("/foo", 1)
     assert result.pathCreated is None
 
 
 def test_write_0_2_x_path_created(httpx_mock, venue):
-    httpx_mock.add_response(url=f"{API_BASE}invoke", json=_complete({"pathCreated": True}), status_code=201)
+    httpx_mock.add_response(url=f"{API_BASE}run", json=_complete({"pathCreated": True}), status_code=201)
     result = venue.workspace.write("/foo/bar/baz", 1)
     assert result.pathCreated is True
 
 
 def test_delete_0_2_x_empty(httpx_mock, venue):
-    httpx_mock.add_response(url=f"{API_BASE}invoke", json=_complete({}), status_code=201)
+    httpx_mock.add_response(url=f"{API_BASE}run", json=_complete({}), status_code=201)
     result = venue.workspace.delete("/foo")  # must not raise (empty object)
     assert result.deleted is None
 
 
 def test_append_0_2_x_new_size(httpx_mock, venue):
     httpx_mock.add_response(
-        url=f"{API_BASE}invoke",
+        url=f"{API_BASE}run",
         json=_complete({"newSize": 3, "pathCreated": True}),
         status_code=201,
     )
@@ -206,14 +206,14 @@ def test_slice_0_2_x_absent_path(httpx_mock, venue):
 
 def test_write_existed_0_3_0(httpx_mock, venue):
     # existed:false = a new value was created; true = an existing one replaced.
-    httpx_mock.add_response(url=f"{API_BASE}invoke", json=_complete({"existed": False}), status_code=201)
+    httpx_mock.add_response(url=f"{API_BASE}run", json=_complete({"existed": False}), status_code=201)
     result = venue.workspace.write("/foo", 1)
     assert result.existed is False
 
 
 def test_append_existed_index_0_3_0(httpx_mock, venue):
     httpx_mock.add_response(
-        url=f"{API_BASE}invoke",
+        url=f"{API_BASE}run",
         json=_complete({"existed": True, "index": 2, "newSize": 3}),
         status_code=201,
     )
@@ -224,7 +224,7 @@ def test_append_existed_index_0_3_0(httpx_mock, venue):
 
 
 def test_delete_no_op_0_3_0(httpx_mock, venue):
-    httpx_mock.add_response(url=f"{API_BASE}invoke", json=_complete({"deleted": False}), status_code=201)
+    httpx_mock.add_response(url=f"{API_BASE}run", json=_complete({"deleted": False}), status_code=201)
     result = venue.workspace.delete("/missing")
     assert result.deleted is False
 
@@ -268,10 +268,10 @@ def test_inspect_single_path_is_job_free(httpx_mock, venue):
     assert "/api/v1/values/inspect" in str(httpx_mock.get_requests()[-1].url)
 
 
-def test_inspect_multi_path_uses_invoke(httpx_mock, venue):
+def test_inspect_multi_path_uses_run(httpx_mock, venue):
     # Multi-path batch renders on the op path (the GET route is single-path).
     httpx_mock.add_response(
-        url=f"{API_BASE}invoke",
+        url=f"{API_BASE}run",
         json=_complete({"result": {"w/a": "…", "w/b": "…"}}),
         status_code=201,
     )

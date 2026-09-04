@@ -9,6 +9,7 @@ from covia.models import (
     ErrorResponse,
     JobData,
     MCPDiscovery,
+    OperationInfo,
     VenueStatus,
 )
 from covia.status import JobStatus
@@ -23,6 +24,33 @@ class TestVenueStatus:
     def test_extra_fields_allowed(self):
         status = VenueStatus.model_validate({"did": "did:web:test", "url": "https://test", "custom_field": "value"})
         assert status.did == "did:web:test"
+
+    def test_098_fields(self):
+        status = VenueStatus.model_validate(
+            {
+                "version": "0.9.8",
+                "ucanProfile": "0.10.0",
+                "access": {"public": True, "userAutoCreate": False},
+            }
+        )
+        assert status.version == "0.9.8"
+        assert status.ucanProfile == "0.10.0"
+        assert status.access == {"public": True, "userAutoCreate": False}
+
+
+def test_operation_098_metadata():
+    operation = OperationInfo.model_validate(
+        {
+            "name": "v/ops/example/read",
+            "asset": "abc123",
+            "activityLabel": "Reading",
+            "readOnly": True,
+            "internal": False,
+        }
+    )
+    assert operation.activityLabel == "Reading"
+    assert operation.readOnly is True
+    assert operation.internal is False
 
 
 class TestAssetList:

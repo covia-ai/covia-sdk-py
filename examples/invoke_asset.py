@@ -8,7 +8,7 @@ import os
 
 from covia import Grid
 
-VENUE_URL = os.environ.get("COVIA_VENUE_URL", "https://venue-3.covia.ai")
+VENUE_URL = os.environ.get("COVIA_VENUE_URL", "https://venue-4.covia.ai")
 
 with Grid.connect(VENUE_URL) as venue:
     # Resolve an operation name to its asset ID

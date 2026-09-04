@@ -259,10 +259,9 @@ class AsyncVenue:
         to the venue's job index, no durable record, gone on venue restart.
         Requires ``enablePrivateJobs`` on the venue.
 
-        Because a completed private job is immediately forgotten, results are
-        collected through the invoke ``wait`` window rather than polling — so
-        private mode works with :meth:`run`; a poll-style :meth:`invoke`
-        raises.
+        Prefer the per-call ``private=True`` argument to :meth:`run` when only
+        selected operations should be private. A poll-style :meth:`invoke`
+        raises while connection-wide private mode is enabled.
         """
         self._private = enabled
 
@@ -292,33 +291,22 @@ class AsyncVenue:
         *,
         timeout: float | None = None,
         ucans: list[str] | None = None,
+        private: bool | None = None,
     ) -> Any:
-        """Invoke an operation and wait for the result.
+        """Run an operation and return its result directly via ``/api/v1/run``.
 
         Args:
             operation: Operation identifier — accepts a hex asset ID,
                 an operation name (e.g. ``"v/ops/schema/infer"``), or a DID URL.
             input: Input parameters for the operation.
-            timeout: Maximum seconds to wait for completion.
+            timeout: HTTP request timeout in seconds. ``None`` uses the
+                connection default.
             ucans: Optional UCAN proof tokens (see :meth:`invoke`).
+            private: Execute as a memory-only job. ``None`` uses the
+                connection-wide setting from :meth:`set_private`.
         """
-        if self._private:
-            # Memory-only job (covia #192): the result is collected through the
-            # invoke wait window — a completed private job is immediately
-            # forgotten, so polling cannot be used.
-            wait: bool | int = int(timeout * 1000) if timeout else True
-            job_data = await self._client.invoke(operation, input, ucans=ucans, private=True, wait=wait)
-            job = AsyncJob(data=job_data, venue=self)
-            if job.is_finished:
-                return job.output
-            raise CoviaTimeoutError(
-                f"Private job {job_data.id} did not finish within the wait window; "
-                "its result cannot be collected by polling (private jobs are "
-                "forgotten on completion). Use a longer timeout or a non-private run."
-            )
-        job = await self.invoke(operation, input, ucans=ucans)
-        await job.wait(timeout=timeout)
-        return job.output
+        effective_private = self._private if private is None else private
+        return await self._client.run(operation, input, ucans=ucans, private=effective_private, timeout=timeout)
 
     async def _get_agents(self, suffix: str, params: dict[str, Any]) -> dict[str, Any]:
         """Internal: ``GET /api/v1/agents{suffix}`` — the job-free agent read
@@ -343,9 +331,9 @@ class AsyncVenue:
         """List all job IDs at this venue."""
         return await self._client.list_jobs()
 
-    async def cancel_job(self, job_id: str) -> JobData:
-        """Cancel a running job."""
-        return await self._client.cancel_job(job_id)
+    async def cancel_job(self, job_id: str, reason: str | None = None) -> JobData:
+        """Cancel a running job, optionally recording a reason."""
+        return await self._client.cancel_job(job_id, reason=reason)
 
     async def delete_job(self, job_id: str) -> None:
         """Delete a job record."""

@@ -1,4 +1,4 @@
-# Claude Code Guidelines for covia-sdk-py
+# Agent Guidelines for covia-sdk-py
 
 ## Project Overview
 
@@ -25,8 +25,11 @@ pytest tests/unit -v
 # Run unit tests with coverage
 pytest tests/unit --cov=covia --cov-report=term
 
-# Run integration tests (requires live venue)
-COVIA_VENUE_URL=https://venue-3.covia.ai pytest -m integration
+# Run read-only checks against the stable venue
+COVIA_VENUE_URL=https://venue-1.covia.ai pytest tests/integration/test_venue_live.py -m integration
+
+# Run the full integration suite against the development venue
+COVIA_VENUE_URL=https://venue-4.covia.ai pytest -m integration
 
 # Lint
 ruff check src/ tests/
@@ -54,7 +57,7 @@ src/covia/
   models.py            # Pydantic v2 data models for API types
   exceptions.py        # Exception hierarchy (CoviaError base)
   auth.py              # Auth interface + built-in providers
-  agents.py            # AgentManager / AsyncAgentManager — v/ops/agent/*
+  agents.py            # Sync/async agent managers, handles, and chat sessions
   secrets.py           # SecretManager / AsyncSecretManager
   workspace.py         # WorkspaceManager / AsyncWorkspaceManager — v/ops/covia/*
   ucan.py              # UCANManager / AsyncUCANManager — v/ops/ucan/*
@@ -86,7 +89,7 @@ src/covia/
 
 Managers are lazy properties on `Venue` / `AsyncVenue` — first access constructs, subsequent accesses return the cached instance. Each manager delegates to the venue via:
 
-- `venue.run(op, input)` — for ops that go through `/api/v1/invoke` (agent, workspace, ucan, secret set/extract)
+- `venue.run(op, input)` — for result-oriented ops through `/api/v1/run` (agent, workspace, ucan, secret set/extract)
 - `venue.list_secrets()` / `delete_secret()` — for the REST secret endpoints (storing goes through `venue.secrets.set`)
 
 Payloads sent on the wire are camelCase to match the Covia REST API; Python args are snake_case and managers handle the translation.
@@ -116,8 +119,8 @@ Tests live in `tests/` with shared fixtures in `conftest.py`.
 
 | Directory | Count | Description |
 |-----------|-------|-------------|
-| `tests/unit/` | 120+ | Mocked HTTP via pytest-httpx, covers all classes and managers |
-| `tests/integration/` | — | Requires live venue, marked `@pytest.mark.integration` |
+| `tests/unit/` | 300+ | Mocked HTTP via pytest-httpx, covers all classes and managers |
+| `tests/integration/` | 8 | Live read-only discovery plus authenticated workspace/UCAN checks |
 
 Unit tests are the primary quality gate. Always run them after changes:
 
@@ -125,7 +128,8 @@ Unit tests are the primary quality gate. Always run them after changes:
 pytest tests/unit -v
 ```
 
-Integration tests are excluded by default. Run explicitly with `-m integration` and a `COVIA_VENUE_URL` env var.
+Integration tests are excluded by default. Run explicitly with `-m integration` and a `COVIA_VENUE_URL` env var. Keep
+stable-venue checks read-only; mutating round-trips belong on the development venue.
 
 ---
 
@@ -156,14 +160,15 @@ Integration tests are excluded by default. Run explicitly with `-m integration` 
 
 ## CI/CD
 
-GitHub Actions (`.github/workflows/ci.yml`) runs on push/PR to `master`:
+GitHub Actions (`.github/workflows/ci.yml`) runs on pushes and PRs to `master` and `develop`:
 
-1. **Matrix:** Python 3.11, 3.12, 3.13 on Ubuntu
+1. **Matrix:** Python 3.11, 3.12, 3.13, 3.14 on Ubuntu
 2. **Lint:** `ruff check`
 3. **Format:** `ruff format --check`
 4. **Type check:** `mypy src/covia/`
 5. **Unit tests:** `pytest tests/unit` with coverage
 6. **Coverage upload:** Codecov on Python 3.12
+7. **Live compatibility:** read-only checks on stable and development venues; mutating integration checks on development
 
 ---
 
@@ -183,6 +188,11 @@ Python SDK release numbers mirror the published `ai.covia:covia-core` version
 line. A compatibility-only release may therefore advance the Python package
 version without runtime changes; document that explicitly in `CHANGELOG.md`.
 
+Before a version bump, compare the target core release's REST routes and
+`v/ops/*` schemas with both low-level clients, managers, typed models, and
+sync/async handles. Confirm the target version on the stable venue and exercise
+the development venue as a forward-compatibility check.
+
 Checklist:
 
 1. On `develop`, bump `__version__` in `src/covia/__init__.py` (the single
@@ -201,6 +211,8 @@ Checklist:
    git checkout develop
    ```
 5. Confirm the **Release branch guard** workflow (`release-guard.yml`) is green.
+   It requires `master` to point exactly at the latest final-release tag, so no
+   unreleased commits may accumulate there.
 
 > Step 4 is the easy one to forget — skipping it leaves `master` stale (this is exactly how `master` once drifted behind `v0.2.0`). The guard workflow fails if `master` doesn't contain the latest final-release tag.
 

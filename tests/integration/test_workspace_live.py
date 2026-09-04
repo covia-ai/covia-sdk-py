@@ -16,7 +16,6 @@ Ed25519 authentication.
 from __future__ import annotations
 
 import os
-import time
 import uuid
 
 import pytest
@@ -24,7 +23,9 @@ import pytest
 pytest.importorskip("cryptography", reason="integration tests need the 'signing' extra")
 pytest.importorskip("jwt", reason="integration tests need the 'signing' extra")
 
-from covia import Grid, Namespace, UCANAttenuation, did_url  # noqa: E402
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey  # noqa: E402
+
+from covia import Grid, Namespace, did_url, grant  # noqa: E402
 from covia.auth import Ed25519Auth  # noqa: E402
 
 VENUE_URL = os.environ.get("COVIA_VENUE_URL", "https://venue-4.covia.ai")
@@ -32,10 +33,11 @@ VENUE_URL = os.environ.get("COVIA_VENUE_URL", "https://venue-4.covia.ai")
 pytestmark = pytest.mark.integration
 
 
-def _fresh_auth() -> Ed25519Auth:
+def _fresh_identity() -> tuple[Ed25519Auth, Ed25519PrivateKey]:
     # No explicit audience — the SDK resolves the venue's DID from did.json
     # and binds the JWT `aud` to it (correct regardless of how we connect).
-    return Ed25519Auth.generate()
+    private_key = Ed25519PrivateKey.generate()
+    return Ed25519Auth(private_key), private_key
 
 
 @pytest.fixture(scope="module")
@@ -48,7 +50,7 @@ def _venue_supports_v_ops() -> bool:
     ``Adapter not available: v/ops/...``. When that happens we skip the
     workspace/UCAN tests rather than failing the build.
     """
-    auth = _fresh_auth()
+    auth, _private_key = _fresh_identity()
     v = Grid.connect(VENUE_URL, auth=auth)
     try:
         try:
@@ -73,9 +75,9 @@ def alice(_venue_supports_v_ops):
             "Deploy a covia venue with OPERATIONS.md materialiseVOps "
             "to run these tests."
         )
-    auth = _fresh_auth()
+    auth, private_key = _fresh_identity()
     v = Grid.connect(VENUE_URL, auth=auth)
-    yield v, auth
+    yield v, auth, private_key
     v.close()
 
 
@@ -83,9 +85,9 @@ def alice(_venue_supports_v_ops):
 def bob(_venue_supports_v_ops):
     if not _venue_supports_v_ops:
         pytest.skip("venue does not expose the v/ops/ catalog (legacy API)")
-    auth = _fresh_auth()
+    auth, private_key = _fresh_identity()
     v = Grid.connect(VENUE_URL, auth=auth)
-    yield v, auth
+    yield v, auth, private_key
     v.close()
 
 
@@ -94,7 +96,7 @@ def _unique(prefix: str) -> str:
 
 
 def test_self_workspace_roundtrip(alice):
-    venue, _auth = alice
+    venue, _auth, _private_key = alice
     path = f"/w/tests/{_unique('note')}"
     venue.workspace.write(path, {"hello": "world"})
 
@@ -112,7 +114,7 @@ def test_self_read_via_did_prefix(alice):
     ``/w/...`` form or the fully-qualified ``did:.../<namespace>/...``
     form, and both must resolve to the same value.
     """
-    venue, auth = alice
+    venue, auth, _private_key = alice
     key = _unique("diddoc")
     bare_path = f"/w/tests/{key}"
     full_path = f"{auth.did}/w/tests/{key}"
@@ -136,8 +138,8 @@ def test_cross_user_read_rejected_without_ucan(alice, bob):
     surface this as an explicit error or as ``exists=False`` — both are
     acceptable semantics for "not visible".
     """
-    alice_venue, alice_auth = alice
-    bob_venue, _bob_auth = bob
+    alice_venue, alice_auth, _alice_private_key = alice
+    bob_venue, _bob_auth, _bob_private_key = bob
 
     key = _unique("private")
     alice_path = did_url(alice_auth.did, Namespace.WORKSPACE, "tests", key)
@@ -159,11 +161,11 @@ def test_cross_user_read_rejected_without_ucan(alice, bob):
 
 
 def test_cross_user_read_with_ucan_delegation(alice, bob):
-    """Alice issues a UCAN to Bob for a specific path, then Bob reads
+    """Alice signs a UCAN grant to Bob for a specific path, then Bob reads
     it successfully by presenting the token in ``ucans``.
     """
-    alice_venue, alice_auth = alice
-    bob_venue, bob_auth = bob
+    alice_venue, alice_auth, alice_private_key = alice
+    bob_venue, bob_auth, _bob_private_key = bob
 
     key = _unique("shared")
     local_path = f"/w/tests/{key}"
@@ -172,25 +174,9 @@ def test_cross_user_read_with_ucan_delegation(alice, bob):
     alice_venue.workspace.write(local_path, {"shared-with-bob": True})
 
     try:
-        # Alice delegates read capability on this specific path to Bob.
-        try:
-            issued = alice_venue.ucan.issue(
-                audience=bob_auth.did,
-                attenuations=[
-                    UCANAttenuation(with_=alice_path, can="crud/read"),
-                ],
-                expiry=int(time.time()) + 600,
-            )
-        except Exception as e:
-            pytest.skip(f"venue does not support ucan:issue or rejected it: {e}")
-
-        # ucan.issue returns a typed UCANIssueResult (model with .token); older
-        # paths may hand back a plain dict — accept both.
-        token = getattr(issued, "token", None)
-        if token is None and isinstance(issued, dict):
-            token = issued.get("token")
-        if not isinstance(token, str):
-            pytest.skip(f"unexpected ucan:issue response shape: {issued!r}")
+        # A self-sovereign DID owns its namespace, so Alice signs the root
+        # grant locally. A venue must not impersonate her by issuing it.
+        token = grant(alice_private_key, bob_auth.did, alice_path, "crud/read", 600)
 
         # Bob presents the token on the read.
         result = bob_venue.run(

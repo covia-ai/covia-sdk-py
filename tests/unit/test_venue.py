@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import httpx
 import pytest
 
@@ -197,19 +199,13 @@ class TestVenueAssets:
 
     def test_pin_asset(self, httpx_mock, venue):
         httpx_mock.add_response(
-            url=f"{API_BASE}invoke",
-            json={
-                "id": "job-pin",
-                "status": "COMPLETE",
-                "output": {"path": "did:key:z6Mk.../a/deadbeef", "hash": "deadbeef"},
-            },
+            url=f"{API_BASE}run",
+            json={"path": "did:key:z6Mk.../a/deadbeef", "hash": "deadbeef"},
             status_code=201,
         )
         result = venue.pin_asset("w/my-assets/foo")
         assert result.hash == "deadbeef"
         assert result.path == "did:key:z6Mk.../a/deadbeef"
-        import json
-
         body = json.loads(httpx_mock.get_requests()[-1].content)
         assert body["operation"] == "v/ops/asset/pin"
         assert body["input"] == {"path": "w/my-assets/foo"}
@@ -239,8 +235,8 @@ class TestVenueInvoke:
 
     def test_run_returns_output(self, httpx_mock, venue):
         httpx_mock.add_response(
-            url=f"{API_BASE}invoke",
-            json={"id": "job003", "status": "COMPLETE", "output": "hello"},
+            url=f"{API_BASE}run",
+            json="hello",
             status_code=201,
         )
         result = venue.run("echo", {"text": "hello"})
@@ -259,7 +255,7 @@ class TestVenueJobs:
 
     def test_list_jobs(self, httpx_mock, venue):
         httpx_mock.add_response(
-            url=f"{API_BASE}jobs",
+            url=f"{API_BASE}jobs?offset=0&limit=1000",
             json=["job001", "job002"],
         )
         jobs = venue.list_jobs()
@@ -268,11 +264,22 @@ class TestVenueJobs:
     def test_list_jobs_envelope(self, httpx_mock, venue):
         # Venue 0.6.0 paged envelope (covia#229) — same call, same result.
         httpx_mock.add_response(
-            url=f"{API_BASE}jobs",
+            url=f"{API_BASE}jobs?offset=0&limit=1000",
             json={"items": ["job001", "job002"], "total": 2, "offset": 0, "limit": 1000},
         )
         jobs = venue.list_jobs()
         assert jobs == ["job001", "job002"]
+
+    def test_list_jobs_collects_all_pages(self, httpx_mock, venue):
+        httpx_mock.add_response(
+            url=f"{API_BASE}jobs?offset=0&limit=1000",
+            json={"items": ["job001", "job002"], "total": 3, "offset": 0, "limit": 2},
+        )
+        httpx_mock.add_response(
+            url=f"{API_BASE}jobs?offset=2&limit=1000",
+            json={"items": ["job003"], "total": 3, "offset": 2, "limit": 2},
+        )
+        assert venue.list_jobs() == ["job001", "job002", "job003"]
 
     def test_cancel_job(self, httpx_mock, venue):
         httpx_mock.add_response(
@@ -281,6 +288,14 @@ class TestVenueJobs:
         )
         result = venue.cancel_job("job001")
         assert result.status == JobStatus.CANCELLED
+
+    def test_cancel_job_with_reason(self, httpx_mock, venue):
+        httpx_mock.add_response(
+            url=f"{API_BASE}jobs/job001/cancel",
+            json={"id": "job001", "status": "CANCELLED"},
+        )
+        venue.cancel_job("job001", reason="superseded")
+        assert json.loads(httpx_mock.get_requests()[-1].content) == {"reason": "superseded"}
 
     def test_delete_job(self, httpx_mock, venue):
         httpx_mock.add_response(

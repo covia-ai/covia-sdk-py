@@ -13,7 +13,7 @@ import os
 
 import pytest
 
-from covia import Grid
+from covia import Grid, __version__
 
 VENUE_URL = os.environ.get("COVIA_VENUE_URL", "https://venue-4.covia.ai")
 
@@ -32,6 +32,9 @@ def test_status(venue):
     status = venue.status()
     assert status is not None
     assert status.did is not None
+    assert status.version is not None
+    if os.environ.get("COVIA_REQUIRE_VERSION_MATCH") == "1":
+        assert status.version == __version__
 
 
 def test_did_document(venue):

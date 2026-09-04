@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.11", "3.12", "3.13"]
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
 
     steps:
       - uses: actions/checkout@v4
@@ -42,10 +42,36 @@ jobs:
         with:
           file: coverage.xml
 
+  integration-readonly:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: test
+    strategy:
+      matrix:
+        include:
+          - venue: https://venue-1.covia.ai
+            require_version_match: "1"
+          - venue: https://venue-4.covia.ai
+            require_version_match: "0"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -e ".[dev,signing]"
+
+      - name: Read-only compatibility tests
+        env:
+          COVIA_VENUE_URL: ${{ matrix.venue }}
+          COVIA_REQUIRE_VERSION_MATCH: ${{ matrix.require_version_match }}
+        run: pytest tests/integration/test_venue_live.py -m integration -v -rs
+
   integration:
     runs-on: ubuntu-latest
-    # Run integration tests against the public test venue on pushes and
-    # manual dispatch. PRs from forks skip (no trusted network).
+    # Mutating workspace/UCAN tests are confined to the development venue.
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     needs: test
     steps:
@@ -58,7 +84,7 @@ jobs:
       - name: Install dependencies
         run: pip install -e ".[dev,signing]"
 
-      - name: Integration tests
+      - name: Development integration tests
         env:
           COVIA_VENUE_URL: https://venue-4.covia.ai
         run: pytest -m integration -v -rs

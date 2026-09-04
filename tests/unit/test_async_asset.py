@@ -46,8 +46,8 @@ class TestAsyncAssetContent:
 class TestAsyncAssetInvoke:
     async def test_run(self, httpx_mock, async_venue):
         httpx_mock.add_response(
-            url=f"{API_BASE}invoke",
-            json={"id": "job001", "status": "COMPLETE", "output": 99},
+            url=f"{API_BASE}run",
+            json=99,
             status_code=201,
         )
         asset = AsyncAsset({"operation": {}}, id="abc123", venue=async_venue)

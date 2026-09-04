@@ -181,8 +181,8 @@ class TestAssetInvoke:
 
     def test_run(self, httpx_mock, venue):
         httpx_mock.add_response(
-            url=f"{API_BASE}invoke",
-            json={"id": "job001", "status": "COMPLETE", "output": 99},
+            url=f"{API_BASE}run",
+            json=99,
             status_code=201,
         )
         asset = Asset(id="abc123", metadata={"operation": {}}, venue=venue)

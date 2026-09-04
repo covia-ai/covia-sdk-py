@@ -1,8 +1,7 @@
 name: Release branch guard
 
-# Fails if `master` does not contain the latest final-release tag (vX.Y.Z).
-# Catches the case where a release is tagged but never promoted to master,
-# so master cannot silently drift behind a published release.
+# Fails unless `master` points exactly at the latest final-release tag (vX.Y.Z).
+# This prevents both a stale release branch and unreleased commits on master.
 
 on:
   push:
@@ -12,7 +11,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  master-contains-latest-release:
+  master-is-latest-release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,7 +19,7 @@ jobs:
           ref: master
           fetch-depth: 0   # full history + tags for ancestry check
 
-      - name: Ensure master contains the latest final-release tag
+      - name: Ensure master equals the latest final-release tag
         run: |
           git fetch --tags --force
           LATEST=$(git tag -l 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1)
@@ -28,9 +27,9 @@ jobs:
             echo "No final-release (vX.Y.Z) tags yet — nothing to check."
             exit 0
           fi
-          if git merge-base --is-ancestor "$LATEST" HEAD; then
-            echo "OK: master contains the latest release tag ${LATEST}."
+          if [ "$(git rev-parse "${LATEST}^{commit}")" = "$(git rev-parse HEAD)" ]; then
+            echo "OK: master points exactly at the latest release tag ${LATEST}."
           else
-            echo "::error::master does not contain the latest release tag ${LATEST}. Fast-forward master up to ${LATEST} (see AGENTS.md → Release process)."
+            echo "::error::master must point exactly at ${LATEST}. Fast-forward master to the release tag and keep unreleased work on develop."
             exit 1
           fi

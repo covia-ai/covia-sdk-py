@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import httpx
 import jwt
 import pytest
@@ -80,6 +82,29 @@ class TestAsyncJobInteractive:
         result = await job.send_message({"answer": "yes"})
         assert result == {"status": "queued", "queueDepth": 2}
 
+    async def test_cancel_with_reason(self, httpx_mock, async_venue):
+        job = AsyncJob(data=JobData(id="job001", status=JobStatus.STARTED), venue=async_venue)
+        httpx_mock.add_response(
+            url=f"{API_BASE}jobs/job001/cancel",
+            json={"id": "job001", "status": "CANCELLED"},
+        )
+        await job.cancel(reason="superseded")
+        assert job.status == JobStatus.CANCELLED
+        assert json.loads(httpx_mock.get_requests()[-1].content) == {"reason": "superseded"}
+
+
+class TestAsyncVenueJobs:
+    async def test_list_jobs_collects_all_pages(self, httpx_mock, async_venue):
+        httpx_mock.add_response(
+            url=f"{API_BASE}jobs?offset=0&limit=1000",
+            json={"items": ["job001"], "total": 2, "offset": 0, "limit": 1},
+        )
+        httpx_mock.add_response(
+            url=f"{API_BASE}jobs?offset=1&limit=1000",
+            json={"items": ["job002"], "total": 2, "offset": 1, "limit": 1},
+        )
+        assert await async_venue.list_jobs() == ["job001", "job002"]
+
 
 class TestAsyncVenueGetAsset:
     async def test_get_asset_by_lattice_path(self, httpx_mock, async_venue):
@@ -94,12 +119,8 @@ class TestAsyncVenueGetAsset:
 
     async def test_pin_asset(self, httpx_mock, async_venue):
         httpx_mock.add_response(
-            url=f"{API_BASE}invoke",
-            json={
-                "id": "job-pin",
-                "status": "COMPLETE",
-                "output": {"path": "did:key:z6Mk.../a/deadbeef", "hash": "deadbeef"},
-            },
+            url=f"{API_BASE}run",
+            json={"path": "did:key:z6Mk.../a/deadbeef", "hash": "deadbeef"},
             status_code=201,
         )
         result = await async_venue.pin_asset("w/my-assets/foo")

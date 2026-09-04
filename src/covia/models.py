@@ -27,6 +27,9 @@ class VenueStatus(BaseModel):
     url: str | None = None
     did: str | None = None
     name: str | None = None
+    version: str | None = None
+    ucanProfile: str | dict[str, Any] | None = None
+    access: dict[str, Any] | None = None
     stats: dict[str, Any] | None = None
 
     model_config = {"extra": "allow"}
@@ -100,6 +103,9 @@ class OperationInfo(BaseModel):
     description: str | None = None
     input: dict[str, Any] | None = None
     output: dict[str, Any] | None = None
+    activityLabel: str | None = None
+    readOnly: bool | None = None
+    internal: bool | None = None
 
     model_config = {"extra": "allow"}
 
@@ -136,7 +142,8 @@ class AgentCreateResult(BaseModel):
 
     agentId: str
     status: str
-    created: bool
+    address: str | None = None
+    created: bool | None = None
     #: True when an existing record was updated in place (venue 0.4+).
     updated: bool | None = None
     #: Non-fatal advisories (venue 0.5+) — e.g. a model whose tool-calling
@@ -154,9 +161,12 @@ class AgentRequestResult(BaseModel):
     it — hence optional.
     """
 
+    agentId: str | None = None
+    address: str | None = None
     id: str | None = None
     status: str | None = None
     output: Any = None
+    sessionId: str | None = None
 
     model_config = {"extra": "allow"}
 
@@ -179,8 +189,10 @@ class AgentChatResult(BaseModel):
     """
 
     agentId: str
+    address: str | None = None
     sessionId: str
     response: Any = None
+    answered: list[str] | None = None
 
     model_config = {"extra": "allow"}
 
@@ -219,8 +231,9 @@ class AgentListEntry(BaseModel):
     """Single entry in ``AgentListResult.agents``."""
 
     agentId: str
-    status: str
-    tasks: int
+    address: str | None = None
+    status: str | None = None
+    tasks: int | None = None
 
     model_config = {"extra": "allow"}
 
@@ -279,6 +292,102 @@ class AgentFailTaskResult(BaseModel):
     agentId: str
     taskId: str
     status: str
+
+    model_config = {"extra": "allow"}
+
+
+class AgentCancelTaskResult(BaseModel):
+    """Result of ``v/ops/agent/cancel-task``."""
+
+    cancelled: bool
+    agentId: str
+    address: str | None = None
+    taskId: str
+
+    model_config = {"extra": "allow"}
+
+
+class AgentSessionSummary(BaseModel):
+    """One conversation returned by ``v/ops/agent/sessions``."""
+
+    sessionId: str
+    title: str | None = None
+    created: int | None = None
+    updated: int | None = None
+    turnCount: int | None = None
+
+    model_config = {"extra": "allow"}
+
+
+class AgentSessionsResult(BaseModel):
+    """Paginated conversation list from ``v/ops/agent/sessions``."""
+
+    sessions: list[AgentSessionSummary]
+    count: int | None = None
+    total: int | None = None
+    offset: int | None = None
+
+    model_config = {"extra": "allow"}
+
+
+class AgentSessionReadResult(BaseModel):
+    """Conversation history from ``v/ops/agent/session-read``."""
+
+    found: bool
+    sessionId: str | None = None
+    title: str | None = None
+    created: int | None = None
+    updated: int | None = None
+    messages: list[Any] = Field(default_factory=list)
+    turnCount: int | None = None
+    truncated: bool | None = None
+
+    model_config = {"extra": "allow"}
+
+
+class AgentRenameSessionResult(BaseModel):
+    """Result of ``v/ops/agent/rename-session``."""
+
+    agentId: str
+    address: str | None = None
+    sessionId: str
+    title: str | None = None
+
+    model_config = {"extra": "allow"}
+
+
+class AgentCompactSessionResult(BaseModel):
+    """Result of ``v/ops/agent/compact-session``."""
+
+    agentId: str
+    address: str | None = None
+    sessionId: str
+    compacted: bool
+    archivedTurns: int | None = None
+    turnCount: int | None = None
+
+    model_config = {"extra": "allow"}
+
+
+class AgentReloadContextResult(BaseModel):
+    """Result of ``v/ops/agent/reload-context``."""
+
+    agentId: str
+    address: str | None = None
+    sessionId: str
+    reloaded: bool
+    frames: int | None = None
+
+    model_config = {"extra": "allow"}
+
+
+class AgentDeleteSessionResult(BaseModel):
+    """Result of ``v/ops/agent/delete-session``."""
+
+    agentId: str
+    address: str | None = None
+    sessionId: str
+    deleted: bool
 
     model_config = {"extra": "allow"}
 

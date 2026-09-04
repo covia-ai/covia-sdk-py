@@ -17,7 +17,7 @@ from covia import (
     JobFailedError,
 )
 
-VENUE_URL = os.environ.get("COVIA_VENUE_URL", "https://venue-3.covia.ai")
+VENUE_URL = os.environ.get("COVIA_VENUE_URL", "https://venue-4.covia.ai")
 
 try:
     with Grid.connect(VENUE_URL) as venue:

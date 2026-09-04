@@ -59,9 +59,11 @@ class SecretManager:
         """Delete a stored secret."""
         self._venue.delete_secret(name)
 
-    def set(self, name: str, value: str) -> SecretSetResult:
-        """Store a secret via ``v/ops/secret/set``."""
-        return SecretSetResult.model_validate(self._venue.run("v/ops/secret/set", {"name": name, "value": value}))
+    def set(self, name: str, value: str, *, overwrite: bool = False) -> SecretSetResult:
+        """Store a secret, refusing replacement unless ``overwrite=True``."""
+        return SecretSetResult.model_validate(
+            self._venue.run("v/ops/secret/set", {"name": name, "value": value, "overwrite": overwrite})
+        )
 
     def extract(self, name: str, *, ucans: _Ucans = None) -> SecretExtractResult:
         """Extract a secret value via ``v/ops/secret/extract``.
@@ -85,8 +87,10 @@ class AsyncSecretManager:
     async def delete(self, name: str) -> None:
         await self._venue.delete_secret(name)
 
-    async def set(self, name: str, value: str) -> SecretSetResult:
-        return SecretSetResult.model_validate(await self._venue.run("v/ops/secret/set", {"name": name, "value": value}))
+    async def set(self, name: str, value: str, *, overwrite: bool = False) -> SecretSetResult:
+        return SecretSetResult.model_validate(
+            await self._venue.run("v/ops/secret/set", {"name": name, "value": value, "overwrite": overwrite})
+        )
 
     async def extract(self, name: str, *, ucans: _Ucans = None) -> SecretExtractResult:
         return SecretExtractResult.model_validate(

@@ -11,7 +11,7 @@ import json
 
 import pytest
 
-from covia import RateLimitError
+from covia import GridError, RateLimitError
 from covia._retry import parse_retry_after_ms, retry_delay_ms
 from tests.conftest import VENUE_URL
 
@@ -84,26 +84,34 @@ def test_agents_list_uses_get(httpx_mock, venue):
     assert "/api/v1/agents" in str(sent.url)
 
 
-def test_agents_info_uses_get_and_falls_back_on_404(httpx_mock, venue):
+def test_agents_info_404_does_not_disable_get_transport(httpx_mock, venue):
     httpx_mock.add_response(url=f"{API_BASE}agents/a1", json={"agentId": "a1", "status": "SLEEPING", "tasks": 0})
     info = venue.agents.info("a1")
     assert info.agentId == "a1"
 
-    # Old venue: GET 404s once → falls back to the invoke path, remembered.
+    # A missing agent is not evidence that the GET route itself is missing.
     httpx_mock.add_response(url=f"{API_BASE}agents/a2", status_code=404, json={"error": "not found"})
+    with pytest.raises(GridError, match="404"):
+        venue.agents.info("a2")
+
+    httpx_mock.add_response(url=f"{API_BASE}agents", json={"agents": ["a1"]})
+    assert venue.agents.list().agents[0].agentId == "a1"
+
+
+def test_agents_bare_list_404_latches_legacy_run_fallback(httpx_mock, venue):
+    # A 404 on the collection route identifies a pre-0.4 venue. Probe once,
+    # then use operation calls for all later agent reads.
+    httpx_mock.add_response(url=f"{API_BASE}agents", status_code=404, json={"error": "not found"})
     httpx_mock.add_response(
-        url=f"{API_BASE}invoke",
+        url=f"{API_BASE}run",
         status_code=201,
-        json={"id": "j1", "status": "COMPLETE", "output": {"agentId": "a2", "status": "SLEEPING"}},
+        json={"agents": []},
     )
-    info2 = venue.agents.info("a2")
-    assert info2.agentId == "a2"
-    # Subsequent reads skip the GET probe entirely (invoke path directly).
-    httpx_mock.add_response(
-        url=f"{API_BASE}invoke", status_code=201, json={"id": "j2", "status": "COMPLETE", "output": {"agents": []}}
-    )
-    venue.agents.list()
-    assert not any("/agents?" in str(r.url) or str(r.url).endswith("/agents") for r in httpx_mock.get_requests()[-1:])
+    assert venue.agents.list().agents == []
+
+    httpx_mock.add_response(url=f"{API_BASE}run", status_code=201, json={"agentId": "a2", "status": "SLEEPING"})
+    assert venue.agents.info("a2").agentId == "a2"
+    assert str(httpx_mock.get_requests()[-1].url).endswith("/api/v1/run")
 
 
 # ── UCAN minting shapes ─────────────────────────────────────────────────────

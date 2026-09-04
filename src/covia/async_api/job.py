@@ -140,11 +140,11 @@ class AsyncJob:
             logger.debug("Job %s polled → %s (delay=%.1fs)", self.id, self.status, delay)
             delay = min(delay * _BACKOFF_FACTOR, _MAX_POLL_DELAY)
 
-    async def cancel(self) -> None:
-        """Cancel this job."""
+    async def cancel(self, *, reason: str | None = None) -> None:
+        """Cancel this job, optionally recording a reason."""
         if self.id is None:
             raise ValueError("Cannot cancel a job with no ID")
-        self._data = await self._venue.cancel_job(self.id)
+        self._data = await self._venue.cancel_job(self.id, reason=reason)
 
     async def pause(self) -> None:
         """Pause this job, refreshing its local state."""

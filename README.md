@@ -83,7 +83,7 @@ job.wait(timeout=60)
 print(job.status)   # JobStatus.COMPLETE
 print(job.output)   # The result
 
-# Or use run() to invoke and wait in one call
+# Or use the result-oriented /run endpoint
 result = venue.run("my-operation", {"prompt": "hello"}, timeout=30)
 
 # Use result() on a Job
@@ -92,17 +92,14 @@ output = venue.invoke("my-op", {"x": 1}).result(timeout=30)
 
 #### Private jobs
 
-`venue.set_private(True)` puts the connection in **private-jobs mode**: every
-subsequent `run()` executes as a memory-only job — never persisted to the
-venue's job index, gone on venue restart (the venue must enable
-`enablePrivateJobs`). Results are collected through the server-side invoke
-`wait` window rather than polling, because a completed private job is
-immediately forgotten — so private mode works with `run()`, and poll-style
-`invoke()` raises.
+Pass `private=True` to `run()` to execute through a memory-only Job wrapper:
+the job is never persisted to the venue's job index and is gone on restart
+(the venue must enable `enablePrivateJobs`). Use `set_private(True)` only when
+every subsequent `run()` on the connection should be private. Poll-style
+`invoke()` raises while connection-wide private mode is enabled.
 
 ```python
-venue.set_private(True)
-result = venue.run("v/ops/schema/infer", {"value": {"name": "Ada"}})
+result = venue.run("v/ops/schema/infer", {"value": {"name": "Ada"}}, private=True)
 ```
 
 ### Job Lifecycle
@@ -126,8 +123,8 @@ if job.is_complete:
 elif job.error:
     print(f"Failed: {job.error}")
 
-# Cancel a running job
-job.cancel()
+# Cancel a running job, optionally recording why
+job.cancel(reason="superseded")
 
 # Stream SSE updates
 for event in job.stream():
@@ -188,12 +185,26 @@ Typed accessors for the venue's `v/ops/*` operations:
 
 ```python
 # Agents (v/ops/agent/*)
-venue.agents.create("my-agent", config={...}, overwrite=True)
+venue.agents.create("my-agent", config={...})
 reply = venue.agents.chat("my-agent", "hello")     # returns AgentChatResult
-print(reply.sessionId, reply.response)
+print(reply.sessionId, reply.response, reply.answered)
+
+# Structured request and saved-session controls
+answer = venue.agents.request(
+    "my-agent",
+    {"question": "Summarise this"},
+    timeout=60,
+    response_schema={"type": "object"},
+    strict=True,
+    loads={"w/context": {"budget": 2000}},
+)
+sessions = venue.agents.sessions("my-agent")
+conversation = venue.agents.read_session("my-agent", sessions.sessions[0].sessionId)
 
 # Secrets (v/ops/secret/* and REST)
 venue.secrets.set("ANTHROPIC_API_KEY", "sk-...")
+# Replacement is deliberate, never implicit:
+venue.secrets.set("ANTHROPIC_API_KEY", "sk-new-...", overwrite=True)
 print(venue.secrets.list())
 
 # Workspace lattice (v/ops/covia/*)
@@ -287,8 +298,11 @@ pytest tests/unit
 ruff check src/ tests/
 mypy src/covia/
 
-# Integration tests (requires a live venue)
-COVIA_VENUE_URL=https://venue-3.covia.ai pytest -m integration
+# Read-only compatibility checks on stable
+COVIA_VENUE_URL=https://venue-1.covia.ai pytest tests/integration/test_venue_live.py -m integration
+
+# Full integration suite on development
+COVIA_VENUE_URL=https://venue-4.covia.ai pytest -m integration
 ```
 
 ## License
