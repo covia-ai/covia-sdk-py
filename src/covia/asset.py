@@ -12,6 +12,8 @@ sync/async call contracts.
 from __future__ import annotations
 
 import hashlib
+import re
+import warnings
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 from covia.did import Namespace, asset_hash, did_url
@@ -49,24 +51,19 @@ class _AssetBase(Generic[_VenueT]):
 
     @staticmethod
     def compute_id(metadata_raw: str) -> str:
-        """Compute the asset ID from canonical metadata bytes.
+        """Deprecated legacy JSON digest; this is NOT a Covia CAD3 asset ID.
 
-        The asset ID is the lowercase hex SHA-256 hash of the exact
-        UTF-8 encoded metadata string.
+        Use the ID returned by venue registration or retrieval instead.
         """
+        warnings.warn("compute_id returns a legacy digest, not a CAD3 asset ID", DeprecationWarning, stacklevel=2)
         return hashlib.sha256(metadata_raw.encode("utf-8")).hexdigest()
 
     @property
     def id(self) -> str | None:
-        """The asset identifier (SHA-256 hex hash of metadata).
+        """The venue-provided CAD3 asset ID, or ``None`` before registration.
 
-        If the asset was constructed without an explicit ID but has raw
-        metadata, the ID is computed lazily from the metadata hash.
-        Returns ``None`` for locally-constructed assets that have
-        neither an explicit ID nor raw metadata.
+        Raw JSON text alone cannot supply a CAD3 value hash.
         """
-        if self._id is None and self._metadata_raw is not None:
-            self._id = self.compute_id(self._metadata_raw)
         return self._id
 
     @property
@@ -78,8 +75,8 @@ class _AssetBase(Generic[_VenueT]):
     def metadata_raw(self) -> str | None:
         """The raw UTF-8 JSON string of the metadata as returned by the server.
 
-        This preserves the exact byte representation needed for computing
-        or validating asset IDs (SHA-256 hash of canonical metadata bytes).
+        Preserved for inspection; JSON formatting does not determine the
+        asset's CAD3 identity.
         Returns ``None`` if the asset was constructed without raw metadata
         (e.g. created locally rather than fetched from a venue).
         """
@@ -244,23 +241,21 @@ class Asset(_AssetBase["Venue"]):
         return venue.run(asset_id, input, timeout=timeout)
 
 
-def resolve_asset_id(ref: str, metadata_raw: str | None) -> str:
-    """Canonical asset id for an asset fetched by *ref* — shared by the sync and
-    async ``get_asset``.
+def resolve_asset_id(ref: str, etag: str | None) -> str:
+    """Use the venue's canonical CAD3 ETag, checking reference consistency.
 
-    For a content-addressed *ref* (hash, ``a/<hash>``, ``<DID>/a/<hash>``) the
-    returned metadata is verified against the requested hash; for a mutable
-    lattice path the venue's resolution is trusted and the canonical hash the
-    metadata resolved to is returned. Falls back to *ref* when the server
-    returned no raw metadata.
-
-    Raises:
-        ValueError: If a content-addressed *ref* doesn't match the metadata.
+    This trusts the venue's response, not a local verification of CAD3 bytes.
+    Older responses without an ETag retain their requested hash or path.
     """
-    if metadata_raw is None:
-        return ref
-    computed = _AssetBase.compute_id(metadata_raw)
     expected = asset_hash(ref)
-    if expected is not None and computed != expected:
-        raise ValueError(f"Asset ID mismatch: requested {ref!r} but metadata hashes to {computed!r}")
-    return computed
+    if expected is not None:
+        expected = expected.removeprefix("0x").lower()
+    if etag is None:
+        return expected or ref
+    match = re.fullmatch(r'"(?:0x)?([0-9a-fA-F]{64})"', etag)
+    if match is None:
+        raise ValueError("Invalid CAD3 asset ETag")
+    resolved = match.group(1).lower()
+    if expected is not None and expected != resolved:
+        raise ValueError(f"Asset ID mismatch: requested {ref!r} but venue returned {resolved!r}")
+    return resolved

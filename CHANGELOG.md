@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.9.11
+
+Targets released Covia venue / Java core 0.9.11. The Python release number
+tracks core, including compatibility releases without runtime changes.
+
+### Added
+
+- Asset catalogue filtering with `list_assets(kind="operation" | "data")`
+  and active-adapter discovery through `get_adapter_operations(name)`,
+  in both sync and async clients.
+- Typed job fields `op`, `adapter`, `parent`, `errorCode`, and `cancellation`,
+  plus agent `address`, external `agent` details and `awaiting` counts.
+  Legacy job `operation` remains available.
+
+### Fixed
+
+- Asset reads use the venue's CAD3 `ETag`, checking it against an immutable
+  reference when supplied. The previous SHA-256-of-JSON check rejected valid
+  released-venue assets. No local CAD3 encoder is introduced; the venue is
+  trusted for metadata and identity. Older responses without an ETag retain
+  the requested hash or path. Local raw JSON no longer invents an asset ID.
+  `Asset.compute_id()` remains as a deprecated legacy digest helper only.
+- Secret extraction documentation now reflects 0.9.11's owner-only,
+  direct result-only execution contract.
+
+### Compatibility
+
+- Reviewed REST routes and operation schema changes from 0.9.8 through
+  0.9.11. Existing job, agent/session, workspace, secret and UCAN calls keep
+  their wire contracts. Job messages accept the acknowledgement without
+  requiring the removed `queueDepth` field.
+- New operations, including `v/ops/agent/query`, `v/ops/agent/summarise`,
+  `v/ops/agent/from-skills`, `v/ops/user/delete`, and `v/ops/crypto/*`, are
+  accessible through the existing `run()` / `invoke()` interfaces.
+- Session history continues to use the venue's format-aware
+  `v/ops/agent/session-read` projection; no client-side frame decoder is needed.
+
 ## 0.9.8
 
 Targets Covia venue 0.9.8.

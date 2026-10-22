@@ -57,3 +57,31 @@ def test_list_jobs(venue):
     except Exception as e:
         pytest.skip(f"list_jobs not available to anonymous caller: {e}")
     assert isinstance(jobs, list)
+
+
+def test_adapter_operations(venue):
+    operations = venue.get_adapter_operations("agent")
+    assert operations
+    assert any(meta.get("operation", {}).get("adapter") == "agent:query" for meta in operations.values())
+
+
+def test_filtered_catalogue(venue):
+    operations = venue.list_assets(kind="operation", limit=2)
+    data = venue.list_assets(kind="data", limit=2)
+    assert operations.total > 0
+    assert data.total >= 0
+    for ref in operations.items:
+        assert venue.get_asset(ref).metadata.get("operation") is not None
+
+
+async def test_async_catalogue_and_asset_identity():
+    from covia.async_api import AsyncGrid
+
+    async with AsyncGrid.connect(VENUE_URL) as venue:
+        operations = await venue.get_adapter_operations("agent")
+        assert operations
+        page = await venue.list_assets(kind="operation", limit=1)
+        assert page.items
+        asset = await venue.get_asset(page.items[0])
+        assert asset.id == page.items[0].rsplit("/", 1)[-1]
+        assert asset.is_operation

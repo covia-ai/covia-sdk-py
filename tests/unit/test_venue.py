@@ -26,16 +26,16 @@ API_BASE = f"{VENUE_URL}/api/v1/"
 
 # Raw metadata strings and their content-addressed IDs for deterministic tests.
 _RAW_TEST_ASSET = '{"name": "Test Asset", "description": "A test"}'
-_ID_TEST_ASSET = Asset.compute_id(_RAW_TEST_ASSET)
+_ID_TEST_ASSET = "1" * 64
 
 _RAW_TEST_ASSET_NAME_ONLY = '{"name": "Test Asset"}'
-_ID_TEST_ASSET_NAME_ONLY = Asset.compute_id(_RAW_TEST_ASSET_NAME_ONLY)
+_ID_TEST_ASSET_NAME_ONLY = "2" * 64
 
 _RAW_NEW_ASSET = '{"name": "New Asset"}'
-_ID_NEW_ASSET = Asset.compute_id(_RAW_NEW_ASSET)
+_ID_NEW_ASSET = "3" * 64
 
 _RAW_FROM_ASSET = '{"name": "From Asset"}'
-_ID_FROM_ASSET = Asset.compute_id(_RAW_FROM_ASSET)
+_ID_FROM_ASSET = "4" * 64
 
 
 class TestVenueStatus:
@@ -129,19 +129,19 @@ class TestVenueAssets:
         httpx_mock.add_response(
             url=f"{API_BASE}assets/w/my-assets/foo",
             text=raw,
-            headers={"content-type": "application/json"},
+            headers={"content-type": "application/json", "ETag": '"0x' + "5" * 64 + '"'},
         )
         asset = venue.get_asset("w/my-assets/foo")
         assert asset.name == "Foo"
         assert asset.is_operation
-        assert asset.id == Asset.compute_id(raw)
+        assert asset.id == "5" * 64
 
     def test_get_asset_hash_mismatch_raises(self, httpx_mock, venue):
-        # Integrity check still applies for content-addressed refs.
+        # A venue response must identify the requested immutable asset.
         httpx_mock.add_response(
             url=f"{API_BASE}assets/{_ID_TEST_ASSET}",
-            text='{"name": "Tampered"}',
-            headers={"content-type": "application/json"},
+            text='{"name": "Different"}',
+            headers={"content-type": "application/json", "ETag": '"0x' + "6" * 64 + '"'},
         )
         with pytest.raises(ValueError, match="mismatch"):
             venue.get_asset(_ID_TEST_ASSET)
@@ -430,3 +430,41 @@ class TestVenueContextManager:
     def test_context_manager(self, httpx_mock):
         with Grid.connect(VENUE_URL) as v:
             assert isinstance(v, Venue)
+
+
+def test_filtered_assets_and_adapter_metadata(httpx_mock, venue):
+    httpx_mock.add_response(
+        url=f"{API_BASE}assets?offset=2&kind=data&limit=3",
+        json={"items": ["did:web:test.covia.ai/a/abc"], "total": 9, "offset": 2, "limit": 3},
+    )
+    page = venue.list_assets(offset=2, limit=3, kind="data")
+    assert page.total == 9
+    assert page.items == ["did:web:test.covia.ai/a/abc"]
+    metadata = {"echo": {"name": "Echo", "operation": {"adapter": "test:echo", "input": {}}}}
+    httpx_mock.add_response(url=f"{API_BASE}adapters/test/operations", json=metadata)
+    assert venue.get_adapter_operations("test") == metadata
+    httpx_mock.add_response(url=f"{API_BASE}adapters/missing/operations", status_code=404, json={"error": "inactive"})
+    with pytest.raises(GridError) as exc:
+        venue.get_adapter_operations("missing")
+    assert exc.value.status_code == 404
+
+
+@pytest.mark.parametrize("ref", ["a/" + "a" * 64, "0x" + "A" * 64, "w/asset", "did:web:owner/a/" + "a" * 64])
+def test_asset_uses_cad3_etag_not_json_bytes(httpx_mock, venue, ref):
+    raw = '{ "name": "Formatting does not define identity" }'
+    httpx_mock.add_response(
+        url=f"{API_BASE}assets/{ref}",
+        text=raw,
+        headers={"ETag": '"0x' + "a" * 64 + '"'},
+    )
+    asset = venue.get_asset(ref)
+    assert asset.id == "a" * 64
+    assert asset.metadata_raw == raw
+
+
+@pytest.mark.parametrize("etag", ['W/"' + "a" * 64 + '"', '"not-a-hash"', '"0x' + "b" * 64 + '"'])
+def test_asset_rejects_invalid_or_conflicting_etag(httpx_mock, venue, etag):
+    ref = "a" * 64
+    httpx_mock.add_response(url=f"{API_BASE}assets/{ref}", json={}, headers={"ETag": etag})
+    with pytest.raises(ValueError):
+        venue.get_asset(ref)

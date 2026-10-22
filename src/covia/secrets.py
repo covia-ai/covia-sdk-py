@@ -68,9 +68,11 @@ class SecretManager:
     def extract(self, name: str, *, ucans: _Ucans = None) -> SecretExtractResult:
         """Extract a secret value via ``v/ops/secret/extract``.
 
-        Requires a UCAN capability grant — pass the proof token(s) as
-        ``ucans=[token]``. Extracting another DID's secret needs a grant on
-        that DID's ``/s/<name>`` resource.
+        Only direct, result-only calls for the caller's own secret are allowed.
+        Requires ``secret/extract`` authority on ``s/NAME``; pass proof tokens
+        as ``ucans=[token]`` when needed. Recorded jobs, agents and nested
+        calls are refused, even with a grant. Prefer secret references for
+        integrations and keep returned plaintext out of logs and history.
         """
         return SecretExtractResult.model_validate(self._venue.run("v/ops/secret/extract", {"name": name}, ucans=ucans))
 

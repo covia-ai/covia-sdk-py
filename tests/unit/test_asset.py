@@ -22,16 +22,15 @@ class TestAssetConstruction:
         asset = Asset({"name": "Test"})
         assert asset.id is None
 
-    def test_id_computed_from_metadata_raw(self):
-        raw = '{"name": "Test"}'
-        asset = Asset({"name": "Test"}, metadata_raw=raw)
-        expected = Asset.compute_id(raw)
-        assert asset.id == expected
+    def test_raw_json_does_not_invent_a_cad3_id(self):
+        asset = Asset({"name": "Test"}, metadata_raw='{"name": "Test"}')
+        assert asset.id is None
 
     def test_compute_id_matches_sha256(self):
         raw = '{"name": "Test"}'
         expected = hashlib.sha256(raw.encode("utf-8")).hexdigest()
-        assert Asset.compute_id(raw) == expected
+        with pytest.warns(DeprecationWarning, match="not a CAD3"):
+            assert Asset.compute_id(raw) == expected
 
     def test_repr_unregistered(self):
         asset = Asset({})

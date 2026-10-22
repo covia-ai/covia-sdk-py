@@ -6,7 +6,7 @@ import asyncio
 import logging
 import time
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import Any, Literal
 
 from covia._async_client import AsyncCoviaHTTPClient
 from covia._sse import SSEEvent
@@ -177,9 +177,11 @@ class AsyncVenue:
     # Assets
     # ------------------------------------------------------------------
 
-    async def list_assets(self, *, offset: int = 0, limit: int | None = None) -> AssetList:
+    async def list_assets(
+        self, *, offset: int = 0, limit: int | None = None, kind: Literal["operation", "data"] | None = None
+    ) -> AssetList:
         """List assets registered at this venue."""
-        return await self._client.list_assets(offset=offset, limit=limit)
+        return await self._client.list_assets(offset=offset, limit=limit, kind=kind)
 
     async def get_asset(self, ref: str) -> AsyncAsset:
         """Get an asset by lattice address.
@@ -190,14 +192,14 @@ class AsyncVenue:
         (``w/my-assets/foo``, ``o/my-op``, ``<DID>/w/...``).
 
         Raises:
-            ValueError: If a content-addressed *ref*'s hash does not match the
-                returned metadata.
+            ValueError: If the venue's CAD3 ETag is malformed or conflicts
+                with a content-addressed reference.
             AssetNotFoundError: If nothing resolves at *ref*.
         """
-        metadata, metadata_raw = await self._client.get_asset_metadata(ref)
+        metadata, metadata_raw, etag = await self._client.get_asset_metadata(ref)
         return AsyncAsset(
             metadata=metadata,
-            id=resolve_asset_id(ref, metadata_raw),
+            id=resolve_asset_id(ref, etag),
             venue=self,
             metadata_raw=metadata_raw,
         )
@@ -240,6 +242,10 @@ class AsyncVenue:
     async def list_operations(self) -> list[OperationInfo]:
         """List all named operations available on this venue."""
         return await self._client.list_operations()
+
+    async def get_adapter_operations(self, name: str) -> dict[str, dict[str, Any]]:
+        """Return an active adapter's operation names mapped to full asset metadata."""
+        return await self._client.get_adapter_operations(name)
 
     async def get_operation(self, name: str) -> OperationInfo:
         """Get details of a named operation.

@@ -8,7 +8,7 @@ import httpx
 import jwt
 import pytest
 
-from covia import CoviaTimeoutError, JobStatus
+from covia import CoviaTimeoutError, GridError, JobStatus
 from covia.async_api import AsyncGrid
 from covia.async_api.job import AsyncJob
 from covia.auth import Ed25519Auth
@@ -167,3 +167,41 @@ class TestAsyncStreaming:
         assert not inspect.iscoroutine(job_gen)
         assert isinstance(job_gen, AsyncIterator)
         await job_gen.aclose()
+
+
+async def test_filtered_assets_and_adapter_metadata(httpx_mock, async_venue):
+    httpx_mock.add_response(
+        url=f"{API_BASE}assets?offset=2&kind=data&limit=3",
+        json={"items": ["did:web:test.covia.ai/a/abc"], "total": 9, "offset": 2, "limit": 3},
+    )
+    page = await async_venue.list_assets(offset=2, limit=3, kind="data")
+    assert page.total == 9
+    assert page.items == ["did:web:test.covia.ai/a/abc"]
+    metadata = {"echo": {"name": "Echo", "operation": {"adapter": "test:echo", "input": {}}}}
+    httpx_mock.add_response(url=f"{API_BASE}adapters/test/operations", json=metadata)
+    assert await async_venue.get_adapter_operations("test") == metadata
+    httpx_mock.add_response(url=f"{API_BASE}adapters/missing/operations", status_code=404, json={"error": "inactive"})
+    with pytest.raises(GridError) as exc:
+        await async_venue.get_adapter_operations("missing")
+    assert exc.value.status_code == 404
+
+
+@pytest.mark.parametrize("ref", ["a/" + "a" * 64, "0x" + "A" * 64, "w/asset", "did:web:owner/a/" + "a" * 64])
+async def test_asset_uses_cad3_etag_not_json_bytes(httpx_mock, async_venue, ref):
+    raw = '{ "name": "Formatting does not define identity" }'
+    httpx_mock.add_response(
+        url=f"{API_BASE}assets/{ref}",
+        text=raw,
+        headers={"ETag": '"0x' + "a" * 64 + '"'},
+    )
+    asset = await async_venue.get_asset(ref)
+    assert asset.id == "a" * 64
+    assert asset.metadata_raw == raw
+
+
+@pytest.mark.parametrize("etag", ['W/"' + "a" * 64 + '"', '"not-a-hash"', '"0x' + "b" * 64 + '"'])
+async def test_asset_rejects_invalid_or_conflicting_etag(httpx_mock, async_venue, etag):
+    ref = "a" * 64
+    httpx_mock.add_response(url=f"{API_BASE}assets/{ref}", json={}, headers={"ETag": etag})
+    with pytest.raises(ValueError):
+        await async_venue.get_asset(ref)

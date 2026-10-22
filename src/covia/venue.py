@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Iterator
-from typing import Any
+from typing import Any, Literal
 
 from covia._client import CoviaHTTPClient
 from covia._sse import SSEEvent
@@ -190,14 +190,17 @@ class Venue:
     # Assets
     # ------------------------------------------------------------------
 
-    def list_assets(self, *, offset: int = 0, limit: int | None = None) -> AssetList:
+    def list_assets(
+        self, *, offset: int = 0, limit: int | None = None, kind: Literal["operation", "data"] | None = None
+    ) -> AssetList:
         """List assets registered at this venue.
 
         Args:
             offset: Pagination offset.
+            kind: Restrict the catalogue to operation or data assets.
             limit: Maximum number of assets to return.
         """
-        return self._client.list_assets(offset=offset, limit=limit)
+        return self._client.list_assets(offset=offset, limit=limit, kind=kind)
 
     def get_asset(self, ref: str) -> Asset:
         """Get an asset by lattice address.
@@ -209,19 +212,19 @@ class Venue:
         capability-gated — present a UCAN bearer (auth) for another DID's
         namespace.
 
-        For a content-addressed *ref* the returned metadata is verified against
-        the hash; for a mutable path the venue's resolution is trusted and the
-        asset's id is the canonical hash it resolved to.
+        For a content-addressed *ref* the requested hash is checked against
+        the venue's ETag; for a mutable path the venue supplies the resolved
+        CAD3 hash. This checks reference consistency, not the metadata bytes.
 
         Raises:
-            ValueError: If a content-addressed *ref*'s hash does not match the
-                returned metadata.
+            ValueError: If the venue's CAD3 ETag is malformed or conflicts
+                with a content-addressed reference.
             AssetNotFoundError: If nothing resolves at *ref*.
         """
-        metadata, metadata_raw = self._client.get_asset_metadata(ref)
+        metadata, metadata_raw, etag = self._client.get_asset_metadata(ref)
         return Asset(
             metadata=metadata,
-            id=resolve_asset_id(ref, metadata_raw),
+            id=resolve_asset_id(ref, etag),
             venue=self,
             metadata_raw=metadata_raw,
         )
@@ -282,6 +285,10 @@ class Venue:
     def list_operations(self) -> list[OperationInfo]:
         """List all named operations available on this venue."""
         return self._client.list_operations()
+
+    def get_adapter_operations(self, name: str) -> dict[str, dict[str, Any]]:
+        """Return an active adapter's operation names mapped to full asset metadata."""
+        return self._client.get_adapter_operations(name)
 
     def get_operation(self, name: str) -> OperationInfo:
         """Get details of a named operation.

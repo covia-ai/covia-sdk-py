@@ -61,7 +61,12 @@ class JobData(BaseModel):
     status: JobStatus = JobStatus.PENDING
     output: Any = None
     error: str | None = None
-    operation: str | None = None
+    operation: str | None = None  # Legacy field; current venues use op.
+    op: str | None = None
+    adapter: str | None = None
+    parent: str | None = None
+    errorCode: str | None = None
+    cancellation: dict[str, Any] | None = None
     input: Any = None
 
     model_config = {"extra": "allow"}
@@ -220,8 +225,11 @@ class AgentInfoResult(BaseModel):
     status: str
     config: dict[str, Any] | None = None
     stateConfig: dict[str, Any] | None = None
+    address: str | None = None
+    agent: dict[str, Any] | None = None
     timelineLength: int | None = None
     tasks: int | None = None
+    awaiting: dict[str, int] | None = None
     error: str | None = None
 
     model_config = {"extra": "allow"}
@@ -234,6 +242,7 @@ class AgentListEntry(BaseModel):
     address: str | None = None
     status: str | None = None
     tasks: int | None = None
+    awaiting: dict[str, int] | None = None
 
     model_config = {"extra": "allow"}
 

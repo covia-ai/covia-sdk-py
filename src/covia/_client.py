@@ -5,7 +5,8 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Iterator
-from typing import Any
+from typing import Any, Literal
+from urllib.parse import quote
 
 import httpx
 from httpx_sse import connect_sse
@@ -78,9 +79,13 @@ class CoviaHTTPClient:
     # Assets
     # ------------------------------------------------------------------
 
-    def list_assets(self, offset: int = 0, limit: int | None = None) -> AssetList:
+    def list_assets(
+        self, offset: int = 0, limit: int | None = None, *, kind: Literal["operation", "data"] | None = None
+    ) -> AssetList:
         """``GET /api/v1/assets``"""
         params: dict[str, Any] = {"offset": offset}
+        if kind is not None:
+            params["kind"] = kind
         if limit is not None:
             params["limit"] = limit
         resp = self._request("GET", "assets", params=params)
@@ -91,17 +96,16 @@ class CoviaHTTPClient:
         resp = self._request("POST", "assets", json=metadata)
         return resp.text.strip().strip('"')
 
-    def get_asset_metadata(self, asset_id: str) -> tuple[dict[str, Any], str]:
+    def get_asset_metadata(self, asset_id: str) -> tuple[dict[str, Any], str, str | None]:
         """``GET /api/v1/assets/{id}``
 
         Returns:
-            A tuple of (parsed metadata dict, raw UTF-8 response text).
-            The raw text is preserved for asset ID computation/validation
-            (asset IDs are the SHA-256 hash of canonical metadata bytes).
+            Parsed metadata, original JSON text, and the venue's CAD3 ETag.
+            Asset identity is independent of JSON formatting.
         """
         resp = self._request_asset("GET", f"assets/{asset_id}", asset_id)
         result: dict[str, Any] = resp.json()
-        return result, resp.text
+        return result, resp.text, resp.headers.get("ETag")
 
     def get_asset_content(self, asset_id: str) -> bytes:
         """``GET /api/v1/assets/{id}/content``"""
@@ -269,6 +273,12 @@ class CoviaHTTPClient:
         """``GET /api/v1/operations``"""
         resp = self._request("GET", "operations")
         return [OperationInfo.model_validate(item) for item in resp.json()]
+
+    def get_adapter_operations(self, name: str) -> dict[str, dict[str, Any]]:
+        """Return operation names mapped to full asset metadata for an active adapter."""
+        resp = self._request("GET", f"adapters/{quote(name, safe='')}/operations")
+        result: dict[str, dict[str, Any]] = resp.json()
+        return result
 
     def get_operation(self, name: str) -> OperationInfo:
         """``GET /api/v1/operations/{name}``"""

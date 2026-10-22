@@ -5,7 +5,8 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import Any, Literal
+from urllib.parse import quote
 
 import httpx
 from httpx_sse import aconnect_sse
@@ -78,9 +79,13 @@ class AsyncCoviaHTTPClient:
     # Assets
     # ------------------------------------------------------------------
 
-    async def list_assets(self, offset: int = 0, limit: int | None = None) -> AssetList:
+    async def list_assets(
+        self, offset: int = 0, limit: int | None = None, *, kind: Literal["operation", "data"] | None = None
+    ) -> AssetList:
         """``GET /api/v1/assets``"""
         params: dict[str, Any] = {"offset": offset}
+        if kind is not None:
+            params["kind"] = kind
         if limit is not None:
             params["limit"] = limit
         resp = await self._request("GET", "assets", params=params)
@@ -91,17 +96,16 @@ class AsyncCoviaHTTPClient:
         resp = await self._request("POST", "assets", json=metadata)
         return resp.text.strip().strip('"')
 
-    async def get_asset_metadata(self, asset_id: str) -> tuple[dict[str, Any], str]:
+    async def get_asset_metadata(self, asset_id: str) -> tuple[dict[str, Any], str, str | None]:
         """``GET /api/v1/assets/{id}``
 
         Returns:
-            A tuple of (parsed metadata dict, raw UTF-8 response text).
-            The raw text is preserved for asset ID computation/validation
-            (asset IDs are the SHA-256 hash of canonical metadata bytes).
+            Parsed metadata, original JSON text, and the venue's CAD3 ETag.
+            Asset identity is independent of JSON formatting.
         """
         resp = await self._request_asset("GET", f"assets/{asset_id}", asset_id)
         result: dict[str, Any] = resp.json()
-        return result, resp.text
+        return result, resp.text, resp.headers.get("ETag")
 
     async def get_asset_content(self, asset_id: str) -> bytes:
         """``GET /api/v1/assets/{id}/content``"""
@@ -263,6 +267,12 @@ class AsyncCoviaHTTPClient:
         """``GET /api/v1/operations``"""
         resp = await self._request("GET", "operations")
         return [OperationInfo.model_validate(item) for item in resp.json()]
+
+    async def get_adapter_operations(self, name: str) -> dict[str, dict[str, Any]]:
+        """Return operation names mapped to full asset metadata for an active adapter."""
+        resp = await self._request("GET", f"adapters/{quote(name, safe='')}/operations")
+        result: dict[str, dict[str, Any]] = resp.json()
+        return result
 
     async def get_operation(self, name: str) -> OperationInfo:
         """``GET /api/v1/operations/{name}``"""

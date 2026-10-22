@@ -137,3 +137,29 @@ class TestAgentCard:
         # Forward-compat: spec fields the model doesn't declare survive.
         card = AgentCard.model_validate({"name": "a", "securitySchemes": {"apiKey": {}}})
         assert card.model_dump()["securitySchemes"] == {"apiKey": {}}
+
+
+def test_current_job_and_agent_wire_fields():
+    from covia.models import AgentInfoResult, AgentListEntry, JobData
+
+    payload = {
+        "id": "job-1",
+        "status": "FAILED",
+        "op": "v/ops/test/echo",
+        "adapter": "test:echo",
+        "parent": "parent-1",
+        "error": "failed",
+        "errorCode": "TEST_FAILURE",
+        "cancellation": {"status": "unknown"},
+        "futureField": {"kept": True},
+    }
+    job = JobData.model_validate(payload)
+    assert job.op == payload["op"]
+    assert job.errorCode == "TEST_FAILURE"
+    assert job.parent == "parent-1"
+    assert job.model_dump(exclude_unset=True) == payload
+    assert JobData(operation="legacy").operation == "legacy"
+    assert JobData().errorCode is None
+    agent = {"agentId": "a", "status": "RUNNING", "awaiting": {"input": 2, "auth": 1}}
+    assert AgentInfoResult.model_validate(agent).awaiting == {"input": 2, "auth": 1}
+    assert AgentListEntry.model_validate(agent).awaiting == {"input": 2, "auth": 1}
