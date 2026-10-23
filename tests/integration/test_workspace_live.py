@@ -191,3 +191,27 @@ def test_cross_user_read_with_ucan_delegation(alice, bob):
         assert result.get("value") == {"shared-with-bob": True}
     finally:
         alice_venue.workspace.delete(local_path)
+
+
+def test_agent_lifecycle_current_contract(alice):
+    venue, _auth, _key = alice
+    source, target = _unique("lifecycle-source"), _unique("lifecycle-fork")
+    try:
+        created = venue.agents.create(source, config={"operation": "v/ops/llmagent/chat", "defaultTools": False})
+        assert created.agentId == source
+        forked = venue.agents.fork(source, target)
+        assert forked.agentId == target
+        assert forked.forkedFrom == source
+        assert venue.agents.info(target).status == "SLEEPING"
+        terminated = venue.agents.delete(target)
+        assert terminated.status == "TERMINATED"
+        removed = venue.agents.delete(target, remove=True)
+        assert removed.removed is True
+        assert removed.status is None
+    finally:
+        # Inspect actual records so a response-validation failure still cleans
+        # up a server-side creation which succeeded.
+        present = {agent.agentId for agent in venue.agents.list().agents}
+        for name in (target, source):
+            if name in present:
+                venue.run("v/ops/agent/delete", {"agentId": name, "remove": True})

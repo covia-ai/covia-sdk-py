@@ -21,12 +21,12 @@ def _complete(output: object) -> object:
 def test_create(httpx_mock, venue):
     httpx_mock.add_response(
         url=f"{API_BASE}run",
-        json=_complete({"agentId": "agent-a", "status": "CREATED", "created": True}),
+        json=_complete({"agentId": "agent-a", "status": "SLEEPING"}),
         status_code=201,
     )
     result = venue.agents.create("agent-a", config={"role": "assistant"})
     assert result.agentId == "agent-a"
-    assert result.created is True
+    assert result.status == "SLEEPING"
     # Verify wire payload sent camelCase + drops None fields
     sent = httpx_mock.get_requests()[-1]
     import json
@@ -44,16 +44,13 @@ def test_create_surfaces_warnings(httpx_mock, venue):
             {
                 "agentId": "agent-w",
                 "status": "SLEEPING",
-                "created": True,
-                "updated": False,
                 "warnings": ["agent declares tools but its Ollama model 'gemma3' does not advertise tool-calling"],
             }
         ),
         status_code=201,
     )
     result = venue.agents.create("agent-w", config={"tools": ["v/ops/covia/read"]})
-    assert result.created is True
-    assert result.updated is False
+    assert result.status == "SLEEPING"
     assert result.warnings and "gemma3" in result.warnings[0]
 
 
@@ -63,7 +60,7 @@ def test_create_accepts_098_result_without_legacy_created_flag(httpx_mock, venue
         json={"agentId": "agent-a", "address": "g/agent-a", "status": "SLEEPING", "warnings": []},
     )
     result = venue.agents.create("agent-a")
-    assert result.created is None
+    assert "created" not in result.model_dump()
     assert result.address == "g/agent-a"
 
 
@@ -322,7 +319,7 @@ def test_trigger(httpx_mock, venue):
 def test_fork(httpx_mock, venue):
     httpx_mock.add_response(
         url=f"{API_BASE}run",
-        json=_complete({"agentId": "agent-b", "status": "CREATED", "created": True, "forkedFrom": "agent-a"}),
+        json=_complete({"agentId": "agent-b", "status": "SLEEPING", "forkedFrom": "agent-a"}),
         status_code=201,
     )
     result = venue.agents.fork("agent-a", "agent-b", include_timeline=True)
@@ -453,7 +450,7 @@ def test_agent_info_suspend_resume_delete_context_delegate():
 def test_agent_fork_returns_new_handle():
     agent, agents, venue = _handle_with_mock()
     forked = agent.fork("a2", include_timeline=True)
-    agents.fork.assert_called_once_with("a1", "a2", config=None, include_timeline=True, overwrite=None)
+    agents.fork.assert_called_once_with("a1", "a2", config=None, include_timeline=True)
     assert isinstance(forked, Agent)
     assert forked.id == "a2"
     assert forked.venue is venue
@@ -494,3 +491,30 @@ async def test_async_agent_delegates_and_chat_session():
     agents.chat.assert_awaited_once_with("a1", "hello", None)
     assert session.session_id == "sess-2"
     assert result.sessionId == "sess-2"
+
+
+@pytest.mark.parametrize("async_mode", [False, True])
+async def test_fork_accepts_current_wire_contract(httpx_mock, venue, async_venue, async_mode):
+    payload = {"agentId": "copy", "address": "g/copy", "status": "SLEEPING", "forkedFrom": "source"}
+    httpx_mock.add_response(url=f"{API_BASE}run", json=payload)
+    if async_mode:
+        result = await async_venue.agents.fork("source", "copy")
+    else:
+        result = venue.agents.fork("source", "copy")
+    assert result.model_dump(exclude_unset=True) == payload
+    import json
+
+    assert json.loads(httpx_mock.get_requests()[-1].content)["input"] == {"sourceId": "source", "agentId": "copy"}
+
+
+@pytest.mark.parametrize("async_mode", [False, True])
+@pytest.mark.parametrize("remove", [False, True])
+async def test_delete_accepts_current_wire_contract(httpx_mock, venue, async_venue, async_mode, remove):
+    payload = {"agentId": "a1", "address": "g/a1"}
+    payload.update({"removed": True} if remove else {"status": "TERMINATED"})
+    httpx_mock.add_response(url=f"{API_BASE}run", json=payload)
+    if async_mode:
+        result = await async_venue.agents.delete("a1", remove=remove)
+    else:
+        result = venue.agents.delete("a1", remove=remove)
+    assert result.model_dump(exclude_unset=True) == payload

@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- Align agent create, fork and delete results with the venue contract: no
+  required legacy creation flags, and physical removal needs no status.
+- Remove unsupported `overwrite` from sync and async fork methods. Create
+  and fork require unused names; use update to preserve existing history.
+- Exercise agent lifecycle responses against a live venue.
+
 ## 0.9.11
 
 Targets released Covia venue / Java core 0.9.11. The Python release number

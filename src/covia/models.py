@@ -148,9 +148,6 @@ class AgentCreateResult(BaseModel):
     agentId: str
     status: str
     address: str | None = None
-    created: bool | None = None
-    #: True when an existing record was updated in place (venue 0.4+).
-    updated: bool | None = None
     #: Non-fatal advisories (venue 0.5+) — e.g. a model whose tool-calling
     #: can't be confirmed, or declared tools that don't resolve on the venue.
     warnings: list[str] | None = None
@@ -256,10 +253,11 @@ class AgentListResult(BaseModel):
 
 
 class AgentDeleteResult(BaseModel):
-    """Result of ``v/ops/agent/delete``."""
+    """Deletion returns status on termination, or removed on physical removal."""
 
     agentId: str
-    status: str
+    address: str | None = None
+    status: str | None = None
     removed: bool | None = None
 
     model_config = {"extra": "allow"}
@@ -279,7 +277,7 @@ class AgentForkResult(BaseModel):
 
     agentId: str
     status: str
-    created: bool
+    address: str | None = None
     forkedFrom: str
 
     model_config = {"extra": "allow"}

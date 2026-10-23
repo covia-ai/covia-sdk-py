@@ -181,6 +181,10 @@ card = venue.agent_card()
 
 ### Agents, Secrets, Workspace & UCANs
 
+Agent create and fork require unused names. Use update to preserve an existing
+agent and its history. Deletion normally returns `status="TERMINATED"`; physical
+removal (`remove=True`) returns `removed=True` without a status.
+
 Typed accessors for the venue's `v/ops/*` operations:
 
 ```python

@@ -337,16 +337,14 @@ class AgentManager:
         *,
         config: _AgentConfig | None = None,
         include_timeline: bool | None = None,
-        overwrite: bool | None = None,
     ) -> AgentForkResult:
-        """Fork *source_id* into a new agent *agent_id* (``v/ops/agent/fork``)."""
+        """Fork into an unused name. Use update to preserve an existing agent."""
         payload = _drop_none(
             {
                 "sourceId": source_id,
                 "agentId": agent_id,
                 "config": config,
                 "includeTimeline": include_timeline,
-                "overwrite": overwrite,
             }
         )
         return AgentForkResult.model_validate(self._venue.run("v/ops/agent/fork", payload))
@@ -563,7 +561,6 @@ class AsyncAgentManager:
         *,
         config: _AgentConfig | None = None,
         include_timeline: bool | None = None,
-        overwrite: bool | None = None,
     ) -> AgentForkResult:
         payload = _drop_none(
             {
@@ -571,7 +568,6 @@ class AsyncAgentManager:
                 "agentId": agent_id,
                 "config": config,
                 "includeTimeline": include_timeline,
-                "overwrite": overwrite,
             }
         )
         return AgentForkResult.model_validate(await self._venue.run("v/ops/agent/fork", payload))
@@ -714,7 +710,6 @@ class Agent:
         *,
         config: _AgentConfig | None = None,
         include_timeline: bool | None = None,
-        overwrite: bool | None = None,
     ) -> Agent:
         """Fork this agent into a new agent *agent_id*, returning its handle."""
         self._agents.fork(
@@ -722,7 +717,6 @@ class Agent:
             agent_id,
             config=config,
             include_timeline=include_timeline,
-            overwrite=overwrite,
         )
         return Agent(agent_id, self.venue)
 
@@ -899,14 +893,12 @@ class AsyncAgent:
         *,
         config: _AgentConfig | None = None,
         include_timeline: bool | None = None,
-        overwrite: bool | None = None,
     ) -> AsyncAgent:
         await self._agents.fork(
             self.id,
             agent_id,
             config=config,
             include_timeline=include_timeline,
-            overwrite=overwrite,
         )
         return AsyncAgent(agent_id, self.venue)
 
